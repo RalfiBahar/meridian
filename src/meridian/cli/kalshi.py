@@ -8,7 +8,7 @@ import sys
 import click
 
 from meridian.config import get_settings
-from meridian.kalshi import KalshiClient, KalshiMarketStatus
+from meridian.kalshi import KalshiClient
 from meridian.kalshi.errors import KalshiAuthError, KalshiHttpError
 from meridian.logging import configure_logging, get_logger
 
@@ -29,14 +29,13 @@ def status_cmd() -> None:
 @click.option(
     "--status",
     "status_filter",
-    type=click.Choice([s.value for s in KalshiMarketStatus]),
+    type=str,
     default=None,
-    help="Filter markets by status.",
+    help="Filter by status: 'unopened', 'open', 'closed', 'settled', or comma-separated.",
 )
 def markets_cmd(limit: int, status_filter: str | None) -> None:
     """List markets, newest first."""
-    status = KalshiMarketStatus(status_filter) if status_filter else None
-    sys.exit(asyncio.run(_markets(limit, status)))
+    sys.exit(asyncio.run(_markets(limit, status_filter)))
 
 
 @kalshi.command(name="orderbook")
@@ -60,7 +59,7 @@ async def _status() -> int:
     return 0
 
 
-async def _markets(limit: int, status: KalshiMarketStatus | None) -> int:
+async def _markets(limit: int, status: str | None) -> int:
     settings = get_settings()
     configure_logging(settings)
     log = get_logger("meridian.kalshi.cli")
@@ -75,10 +74,10 @@ async def _markets(limit: int, status: KalshiMarketStatus | None) -> int:
             "market",
             ticker=m.ticker,
             status=m.status.value if m.status else None,
-            yes_bid=m.yes_bid,
-            yes_ask=m.yes_ask,
-            last=m.last_price,
-            volume_24h=m.volume_24h,
+            yes_bid=str(m.yes_bid) if m.yes_bid is not None else None,
+            yes_ask=str(m.yes_ask) if m.yes_ask is not None else None,
+            last=str(m.last_price) if m.last_price is not None else None,
+            volume_24h=str(m.volume_24h) if m.volume_24h is not None else None,
             title=m.title,
         )
     log.info("kalshi.markets.summary", count=len(markets), next_cursor=cursor)
@@ -100,9 +99,10 @@ async def _orderbook(ticker: str) -> int:
         ticker=ticker,
         yes_levels=len(book.yes),
         no_levels=len(book.no),
-        yes_best_bid_cents=book.yes_best_bid_cents(),
-        yes_best_ask_cents=book.yes_best_ask_cents(),
-        yes_total_size=book.yes_total_size(),
-        no_total_size=book.no_total_size(),
+        yes_best_bid=str(book.yes_best_bid()) if book.yes_best_bid() is not None else None,
+        yes_best_ask=str(book.yes_best_ask()) if book.yes_best_ask() is not None else None,
+        yes_spread=str(book.yes_spread()) if book.yes_spread() is not None else None,
+        yes_total_size=str(book.yes_total_size()),
+        no_total_size=str(book.no_total_size()),
     )
     return 0

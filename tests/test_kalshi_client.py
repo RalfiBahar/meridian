@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
+
 import httpx
 import pytest
 
@@ -38,13 +40,19 @@ async def test_list_markets_parses_response(kalshi_settings: Settings) -> None:
             json={
                 "markets": [
                     {
-                        "ticker": "KX-TEST-1",
-                        "title": "Will Meridian ship Phase 1 on time?",
+                        "ticker": "KXFED-26JUN-T3.75",
+                        "title": "Will Fed funds rate be above 3.75% in June 2026?",
                         "status": "active",
-                        "yes_bid": 65,
-                        "yes_ask": 67,
-                        "last_price": 66,
-                        "volume_24h": 12345,
+                        "yes_bid_dollars": "0.0200",
+                        "yes_ask_dollars": "0.0300",
+                        "no_bid_dollars": "0.9700",
+                        "no_ask_dollars": "0.9800",
+                        "last_price_dollars": "0.0250",
+                        "yes_bid_size_fp": "1500.00",
+                        "yes_ask_size_fp": "1200.00",
+                        "volume_24h_fp": "98506.75",
+                        "volume_fp": "150000.00",
+                        "open_interest_fp": "42000.00",
                     }
                 ],
                 "cursor": "next-page-token",
@@ -53,19 +61,22 @@ async def test_list_markets_parses_response(kalshi_settings: Settings) -> None:
 
     transport = httpx.MockTransport(handler)
     async with KalshiClient(kalshi_settings, transport=transport) as client:
-        markets, cursor = await client.list_markets(limit=5, status=KalshiMarketStatus.ACTIVE)
+        markets, cursor = await client.list_markets(limit=5, status="open")
 
     assert cursor == "next-page-token"
     assert len(markets) == 1
     m = markets[0]
-    assert m.ticker == "KX-TEST-1"
+    assert m.ticker == "KXFED-26JUN-T3.75"
     assert m.status is KalshiMarketStatus.ACTIVE
-    assert m.yes_bid == 65 and m.yes_ask == 67
+    assert m.yes_bid == Decimal("0.0200")
+    assert m.yes_ask == Decimal("0.0300")
+    assert m.yes_bid_size == Decimal("1500.00")
+    assert m.volume_24h == Decimal("98506.75")
 
     req = captured["request"]
     assert req.url.path == "/trade-api/v2/markets"
     assert req.url.params["limit"] == "5"
-    assert req.url.params["status"] == "active"
+    assert req.url.params["status"] == "open"
     assert req.url.host == "demo-api.kalshi.co"
     assert req.headers["KALSHI-ACCESS-KEY"] == "test-access-key"
     assert "KALSHI-ACCESS-SIGNATURE" in req.headers
@@ -77,22 +88,23 @@ async def test_get_orderbook_parses_and_computes_best(kalshi_settings: Settings)
         return httpx.Response(
             200,
             json={
-                "orderbook": {
-                    "yes": [[62, 800], [60, 2000]],  # bids on YES
-                    "no": [[34, 500], [33, 1500]],  # bids on NO
+                "orderbook_fp": {
+                    "yes_dollars": [["0.0200", "1500.00"], ["0.0100", "5000.00"]],
+                    "no_dollars": [["0.9700", "1200.00"], ["0.9600", "3000.00"]],
                 }
             },
         )
 
     transport = httpx.MockTransport(handler)
     async with KalshiClient(kalshi_settings, transport=transport) as client:
-        book = await client.get_orderbook("KX-TEST-1")
+        book = await client.get_orderbook("KXFED-26JUN-T3.75")
 
-    assert book.yes_best_bid_cents() == 62
-    # Best YES ask = 100 - best NO bid (34) = 66.
-    assert book.yes_best_ask_cents() == 66
-    assert book.yes_total_size() == 2800
-    assert book.no_total_size() == 2000
+    assert book.yes_best_bid() == Decimal("0.0200")
+    # Best YES ask = 1 - best NO bid (0.9700) = 0.0300.
+    assert book.yes_best_ask() == Decimal("0.0300")
+    assert book.yes_spread() == Decimal("0.0100")
+    assert book.yes_total_size() == Decimal("6500.00")
+    assert book.no_total_size() == Decimal("4200.00")
 
 
 async def test_http_error_raises_kalshi_http_error(kalshi_settings: Settings) -> None:

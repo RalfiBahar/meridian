@@ -11,7 +11,7 @@ from meridian.config import Settings
 from meridian.kalshi.auth import KalshiSigner
 from meridian.kalshi.endpoints import REST_HOST, signed_path
 from meridian.kalshi.errors import KalshiHttpError
-from meridian.kalshi.models import KalshiMarket, KalshiMarketStatus, KalshiOrderbook
+from meridian.kalshi.models import KalshiMarket, KalshiOrderbook
 from meridian.logging import get_logger
 
 
@@ -79,14 +79,22 @@ class KalshiClient:
         *,
         limit: int = 100,
         cursor: str | None = None,
-        status: KalshiMarketStatus | None = None,
+        status: str | None = None,
         event_ticker: str | None = None,
     ) -> tuple[list[KalshiMarket], str | None]:
+        """List markets.
+
+        Note: the `status` *filter* uses a different vocabulary than the
+        market's `status` *field* — filter accepts `unopened|open|closed|settled`
+        (comma-separated for multiple), responses report
+        `initialized|active|closed|settled|deactivated`. See
+        https://docs.kalshi.com/reference/getmarkets.
+        """
         params: dict[str, Any] = {"limit": limit}
         if cursor:
             params["cursor"] = cursor
         if status is not None:
-            params["status"] = status.value
+            params["status"] = status
         if event_ticker:
             params["event_ticker"] = event_ticker
         data = await self._request("GET", "/markets", params=params)
@@ -100,4 +108,5 @@ class KalshiClient:
 
     async def get_orderbook(self, ticker: str) -> KalshiOrderbook:
         data = await self._request("GET", f"/markets/{ticker}/orderbook")
-        return KalshiOrderbook.model_validate(data.get("orderbook", {}))
+        # Kalshi wraps the L2 book under "orderbook_fp".
+        return KalshiOrderbook.model_validate(data.get("orderbook_fp", {}))
