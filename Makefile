@@ -1,4 +1,4 @@
-.PHONY: help install up down reset logs ps health test test-all lint format typecheck check
+.PHONY: help install up down reset logs ps health migrate test test-all lint format typecheck check
 
 help:
 	@echo "Meridian development commands:"
@@ -9,6 +9,7 @@ help:
 	@echo "  make logs        tail container logs"
 	@echo "  make ps          show container status"
 	@echo "  make health      run the healthcheck CLI"
+	@echo "  make migrate     apply pending DB migrations"
 	@echo "  make test        run unit tests"
 	@echo "  make test-all    run unit + integration tests"
 	@echo "  make lint        ruff check"
@@ -36,6 +37,9 @@ ps:
 
 health:
 	uv run python -m meridian.cli health
+
+migrate:
+	uv run python -m meridian.cli migrate
 
 test:
 	uv run pytest -m "not integration"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import click
 
 from meridian.cli.health import health
+from meridian.cli.migrate import migrate
 
 
 @click.group()
@@ -13,6 +14,7 @@ def cli() -> None:
 
 
 cli.add_command(health)
+cli.add_command(migrate)
 
 
 if __name__ == "__main__":
