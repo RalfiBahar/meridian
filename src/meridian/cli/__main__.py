@@ -5,6 +5,7 @@ from __future__ import annotations
 import click
 
 from meridian.cli.health import health
+from meridian.cli.kalshi import kalshi
 from meridian.cli.migrate import migrate
 
 
@@ -15,6 +16,7 @@ def cli() -> None:
 
 cli.add_command(health)
 cli.add_command(migrate)
+cli.add_command(kalshi)
 
 
 if __name__ == "__main__":
