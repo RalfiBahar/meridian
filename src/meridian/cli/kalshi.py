@@ -9,6 +9,8 @@ import time
 import click
 
 from meridian.config import get_settings
+from meridian.db.postgres import pool_context
+from meridian.ingest import KalshiIngestWorker
 from meridian.kalshi import KalshiClient, KalshiWebSocketClient, normalize_kalshi_message
 from meridian.kalshi.errors import KalshiAuthError, KalshiHttpError
 from meridian.kalshi.ws import DEFAULT_CHANNELS
@@ -74,6 +76,34 @@ def tap_cmd(tickers: str, seconds: int, channels: str) -> None:
         click.echo("error: --tickers must contain at least one ticker", err=True)
         sys.exit(2)
     sys.exit(asyncio.run(_tap(ticker_list, seconds, channel_tuple)))
+
+
+@kalshi.command(name="ingest")
+@click.option(
+    "--tickers",
+    required=True,
+    help="Comma-separated Kalshi market tickers to subscribe to.",
+)
+@click.option(
+    "--seconds",
+    type=int,
+    default=60,
+    show_default=True,
+    help="Run duration; persist events for this long then disconnect.",
+)
+@click.option(
+    "--channels",
+    default=",".join(DEFAULT_CHANNELS),
+    show_default=True,
+)
+def ingest_cmd(tickers: str, seconds: int, channels: str) -> None:
+    """Subscribe to Kalshi WS, normalize, and persist to TimescaleDB."""
+    ticker_list = [t.strip() for t in tickers.split(",") if t.strip()]
+    channel_tuple = tuple(c.strip() for c in channels.split(",") if c.strip())
+    if not ticker_list:
+        click.echo("error: --tickers must contain at least one ticker", err=True)
+        sys.exit(2)
+    sys.exit(asyncio.run(_ingest(ticker_list, seconds, channel_tuple)))
 
 
 async def _status() -> int:
@@ -231,3 +261,21 @@ def _log_event(log: object, event: object) -> None:
     # `log` is structlog's FilteringBoundLogger but typed as object to keep
     # the helper signature simple. The runtime call is correct.
     log.info("tap.event", **fields)  # type: ignore[attr-defined]
+
+
+async def _ingest(tickers: list[str], seconds: int, channels: tuple[str, ...]) -> int:
+    settings = get_settings()
+    configure_logging(settings)
+    log = get_logger("meridian.kalshi.ingest")
+    log.info("ingest.start", tickers=tickers, seconds=seconds, channels=list(channels))
+
+    try:
+        async with pool_context(settings) as pool:
+            worker = KalshiIngestWorker(settings, pool, tickers=tickers, channels=channels)
+            stats = await worker.run(seconds=seconds)
+    except KalshiAuthError as exc:
+        log.error("ingest.auth_failed", error=str(exc))
+        return 1
+
+    log.info("ingest.done", **stats.as_log_fields())
+    return 0
