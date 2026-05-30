@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import time
 
 import click
 
 from meridian.config import get_settings
-from meridian.kalshi import KalshiClient
+from meridian.kalshi import KalshiClient, KalshiWebSocketClient, normalize_kalshi_message
 from meridian.kalshi.errors import KalshiAuthError, KalshiHttpError
+from meridian.kalshi.ws import DEFAULT_CHANNELS
 from meridian.logging import configure_logging, get_logger
 
 
@@ -43,6 +45,35 @@ def markets_cmd(limit: int, status_filter: str | None) -> None:
 def orderbook_cmd(ticker: str) -> None:
     """Fetch the order book for one market."""
     sys.exit(asyncio.run(_orderbook(ticker)))
+
+
+@kalshi.command(name="tap")
+@click.option(
+    "--tickers",
+    required=True,
+    help="Comma-separated Kalshi market tickers to subscribe to.",
+)
+@click.option(
+    "--seconds",
+    type=int,
+    default=30,
+    show_default=True,
+    help="Run duration; disconnect cleanly after this many seconds.",
+)
+@click.option(
+    "--channels",
+    default=",".join(DEFAULT_CHANNELS),
+    show_default=True,
+    help="Comma-separated WS channels to subscribe to.",
+)
+def tap_cmd(tickers: str, seconds: int, channels: str) -> None:
+    """Subscribe to Kalshi WS, normalize each message, log it. Read-only — no DB writes."""
+    ticker_list = [t.strip() for t in tickers.split(",") if t.strip()]
+    channel_tuple = tuple(c.strip() for c in channels.split(",") if c.strip())
+    if not ticker_list:
+        click.echo("error: --tickers must contain at least one ticker", err=True)
+        sys.exit(2)
+    sys.exit(asyncio.run(_tap(ticker_list, seconds, channel_tuple)))
 
 
 async def _status() -> int:
@@ -106,3 +137,97 @@ async def _orderbook(ticker: str) -> int:
         no_total_size=str(book.no_total_size()),
     )
     return 0
+
+
+async def _tap(tickers: list[str], seconds: int, channels: tuple[str, ...]) -> int:
+    settings = get_settings()
+    configure_logging(settings)
+    log = get_logger("meridian.kalshi.tap")
+    log.info("tap.start", tickers=tickers, seconds=seconds, channels=list(channels))
+
+    deadline = time.monotonic() + seconds
+    received = 0
+    normalized = 0
+    control = 0
+    unknown_types: dict[str, int] = {}
+
+    try:
+        async with KalshiWebSocketClient(settings, tickers=tickers, channels=channels) as client:
+            stream = client.stream()
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                try:
+                    raw = await asyncio.wait_for(stream.__anext__(), timeout=remaining)
+                except (TimeoutError, StopAsyncIteration):
+                    break
+                received += 1
+                event = normalize_kalshi_message(raw)
+                if event is None:
+                    raw_type = raw.get("type", "?")
+                    msg_type = raw_type if isinstance(raw_type, str) else "?"
+                    if msg_type in ("subscribed", "ok", "unsubscribed"):
+                        control += 1
+                        log.info("tap.control", type=msg_type, msg=raw.get("msg"))
+                    else:
+                        unknown_types[msg_type] = unknown_types.get(msg_type, 0) + 1
+                    continue
+                normalized += 1
+                _log_event(log, event)
+    except KalshiAuthError as exc:
+        log.error("tap.auth_failed", error=str(exc))
+        return 1
+
+    log.info(
+        "tap.done",
+        received=received,
+        normalized=normalized,
+        control=control,
+        unknown=unknown_types,
+    )
+    return 0
+
+
+def _log_event(log: object, event: object) -> None:
+    """Log a CanonicalEvent in a flat shape — kind + key payload fields."""
+    from meridian.events import (
+        BookDeltaEvent,
+        BookEvent,
+        CanonicalEvent,
+        QuoteEvent,
+        StatusEvent,
+        TradeEvent,
+    )
+
+    assert isinstance(event, CanonicalEvent)
+    payload = event.payload
+    fields: dict[str, object] = {
+        "ticker": event.external_market_id,
+        "seq": event.sequence_no,
+        "kind": payload.kind.value,
+    }
+    if isinstance(payload, QuoteEvent):
+        fields["bid"] = str(payload.bid) if payload.bid is not None else None
+        fields["ask"] = str(payload.ask) if payload.ask is not None else None
+        fields["bid_size"] = str(payload.bid_size) if payload.bid_size is not None else None
+        fields["ask_size"] = str(payload.ask_size) if payload.ask_size is not None else None
+    elif isinstance(payload, TradeEvent):
+        fields["price"] = str(payload.price)
+        fields["size"] = str(payload.size)
+        fields["aggressor"] = payload.aggressor
+    elif isinstance(payload, BookEvent):
+        fields["levels"] = len(payload.levels)
+        yes_levels = [lv for lv in payload.levels if lv.side == "yes"]
+        no_levels = [lv for lv in payload.levels if lv.side == "no"]
+        fields["yes_best"] = str(yes_levels[0].price) if yes_levels else None
+        fields["no_best"] = str(no_levels[0].price) if no_levels else None
+    elif isinstance(payload, BookDeltaEvent):
+        fields["side"] = payload.side
+        fields["price"] = str(payload.price)
+        fields["delta"] = str(payload.delta)
+    elif isinstance(payload, StatusEvent):
+        fields["status"] = payload.status
+    # `log` is structlog's FilteringBoundLogger but typed as object to keep
+    # the helper signature simple. The runtime call is correct.
+    log.info("tap.event", **fields)  # type: ignore[attr-defined]
