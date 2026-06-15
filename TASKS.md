@@ -7,32 +7,31 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
-## Phase 1c.3 — Long-running worker + Redis Streams (READY)
+## Phase 1c.3 — Long-running worker + Redis Streams (DONE)
 
 These complete the Phase 1c deliverable.
 
-- [ ] **1c.3-a** Refactor `KalshiIngestWorker.run()` to run indefinitely
+- [x] **1c.3-a** Refactor `KalshiIngestWorker.run()` to run indefinitely
   (remove the `seconds` parameter / deadline loop; accept a stop event or
   signal instead)
-- [ ] **1c.3-b** Add reconnect with exponential backoff (initial 1s, max 60s,
+- [x] **1c.3-b** Add reconnect with exponential backoff (initial 1s, max 60s,
   jitter ±20%) when the WS connection drops or raises an exception
-- [ ] **1c.3-c** Publish each persisted `CanonicalEvent` to a Redis Stream
+- [x] **1c.3-c** Publish each persisted `CanonicalEvent` to a Redis Stream
   (`XADD kalshi.events *` with JSON-serialized event); use the existing
   `meridian.bus.redis` client
-- [ ] **1c.3-d** Add `meridian ingest kalshi --tickers T1,T2,...` CLI command
-  (in `cli/kalshi.py` or a new `cli/ingest.py`) that boots the worker and
-  runs until interrupted
-- [ ] **1c.3-e** REST-driven market enrichment: after inserting a
+- [x] **1c.3-d** Add `meridian ingest kalshi --tickers T1,T2,...` CLI command
+  (in `cli/ingest.py`) that boots the worker and runs until interrupted
+- [x] **1c.3-e** REST-driven market enrichment: after inserting a
   `(pending REST sync)` market row, schedule a background REST call via
   `KalshiClient.get_market(ticker)` to fill in `question`, `category`,
   `opens_at`, `closes_at`, etc.
-- [ ] **1c.3-f** Add integration test covering reconnect: mock WS server that
+- [x] **1c.3-f** Add integration test covering reconnect: mock WS server that
   closes after N messages, assert worker reconnects and resumes counting
-- [ ] **1c.3-g** Update `CHANGELOG.md` with Phase 1c.3 changes
+- [x] **1c.3-g** Update `CHANGELOG.md` with Phase 1c.3 changes
 
 ---
 
-## Phase 1d — Polymarket ingestion + observability (BLOCKED on 1c.3)
+## Phase 1d — Polymarket ingestion + observability (READY)
 
 - [ ] **1d-a** Research Polymarket CLOB WebSocket API; document protocol quirks
   in `docs/polymarket.md`

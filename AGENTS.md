@@ -176,8 +176,8 @@ make check        # lint + typecheck + unit tests
 | 0 | Foundations | Done |
 | 1a | Canonical event schema + migrations | Done |
 | 1b | Kalshi REST client + RSA-PSS auth | Done |
-| 1c | Kalshi WebSocket ingestion worker | 1c.1 + 1c.2 done; 1c.3 pending |
-| 1d | Polymarket ingestion + observability | Planned |
+| 1c | Kalshi WebSocket ingestion worker | Done |
+| 1d | Polymarket ingestion + observability | Ready |
 | 2–7 | Analytics, arb engine, frontend | Planned |
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.

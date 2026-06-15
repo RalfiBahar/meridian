@@ -8,8 +8,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 1c.3: long-running ingest worker with reconnect/exponential backoff + Redis Streams publishing
 - Phase 1d: Polymarket CLOB ingestion + Prometheus/Grafana observability
+
+---
+
+## Phase 1c.3 — 2026-06-15
+
+### Added
+- `src/meridian/cli/ingest.py` — new `ingest` command group with `kalshi`
+  subcommand: `meridian ingest kalshi --tickers T1,T2` runs indefinitely,
+  reconnects automatically, and exits cleanly on SIGINT/SIGTERM
+- `src/meridian/ingest/worker.py` — major refactor of `KalshiIngestWorker`:
+  - `run()` now accepts `stop_event: asyncio.Event | None` instead of
+    `seconds: int`; runs until the event is set or the task is cancelled
+  - Exponential backoff on reconnect: initial 1 s, max 60 s, jitter ±20%
+  - Clean WS close (code 1000) triggers immediate reconnect (no backoff)
+  - `reconnects` counter in `IngestStats` tracks all re-connections
+  - Each persisted `CanonicalEvent` is published to Redis Streams as
+    `XADD kalshi.events * event <json>` when a `redis` client is provided
+  - `events_published` counter in `IngestStats`
+  - Background REST enrichment: on first sight of a new market ticker,
+    schedules `KalshiClient.get_market()` to update `question`, `category`,
+    `opens_at`, `closes_at` in place of the `(pending REST sync)` stub
+- `tests/test_ingest_worker.py` — five unit tests covering: reconnect after
+  server close, stop-event termination, Redis XADD, connection-error backoff,
+  and market enrichment DB update (all using local WS server + mock DB pool)
+- `IngestStats` extended with `reconnects` and `events_published` fields
+
+### Changed
+- `meridian kalshi ingest` command: removed `--seconds` flag; now runs
+  indefinitely until interrupted (kept as backward-compatible alias for
+  `meridian ingest kalshi`)
+- `src/meridian/cli/__main__.py`: registered `ingest` command group
+
+### Fixed
+- Pre-existing mypy error in `health.py` (`redundant-cast` on `Awaitable`)
 
 ---
 

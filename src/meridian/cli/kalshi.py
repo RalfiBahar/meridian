@@ -1,8 +1,9 @@
-"""CLI subcommands: `meridian kalshi {status,markets,orderbook}`."""
+"""CLI subcommands: `meridian kalshi {status,markets,orderbook,tap}`."""
 
 from __future__ import annotations
 
 import asyncio
+import signal
 import sys
 import time
 
@@ -85,25 +86,22 @@ def tap_cmd(tickers: str, seconds: int, channels: str) -> None:
     help="Comma-separated Kalshi market tickers to subscribe to.",
 )
 @click.option(
-    "--seconds",
-    type=int,
-    default=60,
-    show_default=True,
-    help="Run duration; persist events for this long then disconnect.",
-)
-@click.option(
     "--channels",
     default=",".join(DEFAULT_CHANNELS),
     show_default=True,
 )
-def ingest_cmd(tickers: str, seconds: int, channels: str) -> None:
-    """Subscribe to Kalshi WS, normalize, and persist to TimescaleDB."""
+def ingest_cmd(tickers: str, channels: str) -> None:
+    """Subscribe to Kalshi WS, normalize, and persist to TimescaleDB.
+
+    Runs until SIGINT (Ctrl-C) or SIGTERM. Prefer `meridian ingest kalshi`
+    for new scripts; this alias is kept for backward compatibility.
+    """
     ticker_list = [t.strip() for t in tickers.split(",") if t.strip()]
     channel_tuple = tuple(c.strip() for c in channels.split(",") if c.strip())
     if not ticker_list:
         click.echo("error: --tickers must contain at least one ticker", err=True)
         sys.exit(2)
-    sys.exit(asyncio.run(_ingest(ticker_list, seconds, channel_tuple)))
+    sys.exit(asyncio.run(_ingest(ticker_list, channel_tuple)))
 
 
 async def _status() -> int:
@@ -263,16 +261,21 @@ def _log_event(log: object, event: object) -> None:
     log.info("tap.event", **fields)  # type: ignore[attr-defined]
 
 
-async def _ingest(tickers: list[str], seconds: int, channels: tuple[str, ...]) -> int:
+async def _ingest(tickers: list[str], channels: tuple[str, ...]) -> int:
     settings = get_settings()
     configure_logging(settings)
     log = get_logger("meridian.kalshi.ingest")
-    log.info("ingest.start", tickers=tickers, seconds=seconds, channels=list(channels))
+    log.info("ingest.start", tickers=tickers, channels=list(channels))
+
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop_event.set)
 
     try:
         async with pool_context(settings) as pool:
             worker = KalshiIngestWorker(settings, pool, tickers=tickers, channels=channels)
-            stats = await worker.run(seconds=seconds)
+            stats = await worker.run(stop_event=stop_event)
     except KalshiAuthError as exc:
         log.error("ingest.auth_failed", error=str(exc))
         return 1

@@ -1,16 +1,20 @@
 """Orchestrate Kalshi WS -> normalize -> persist.
 
-Phase 1c.2 scope: a single connection, fixed duration. Reconnect/backoff
-and long-running operation arrive in 1c.3.
+Phase 1c.3: indefinite operation with exponential-backoff reconnect, Redis
+Streams publishing, and background REST enrichment for new markets.
 """
 
 from __future__ import annotations
 
 import asyncio
-import time
+import contextlib
+import random
 from typing import Any
+from uuid import UUID
 
 import asyncpg
+import redis.asyncio as aioredis
+from websockets.exceptions import ConnectionClosedOK
 
 from meridian.config import Settings
 from meridian.events import CanonicalEvent
@@ -22,6 +26,14 @@ from meridian.kalshi.normalize import normalize_kalshi_message
 from meridian.kalshi.ws import DEFAULT_CHANNELS, KalshiWebSocketClient
 from meridian.logging import get_logger
 
+_BACKOFF_INITIAL = 1.0
+_BACKOFF_MAX = 60.0
+_BACKOFF_JITTER = 0.20
+
+
+async def _wait_for_event(event: asyncio.Event) -> None:
+    await event.wait()
+
 
 class KalshiIngestWorker:
     def __init__(
@@ -31,35 +43,115 @@ class KalshiIngestWorker:
         *,
         tickers: list[str],
         channels: tuple[str, ...] = DEFAULT_CHANNELS,
+        redis: aioredis.Redis | None = None,
     ) -> None:
         self._settings = settings
         self._pool = pool
         self._tickers = tickers
         self._channels = channels
+        self._redis = redis
         self._registry = MarketRegistry(pool, venue_code="kalshi")
         self._writer = TickWriter(pool)
         self._gaps = GapDetector(pool)
         self._stats = IngestStats()
         self._log = get_logger("meridian.kalshi.ingest")
+        self._bg_tasks: set[asyncio.Task[None]] = set()
 
-    async def run(self, *, seconds: int) -> IngestStats:
-        deadline = time.monotonic() + seconds
-        async with KalshiWebSocketClient(
-            self._settings, tickers=self._tickers, channels=self._channels
-        ) as client:
-            stream = client.stream()
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
+    async def run(self, *, stop_event: asyncio.Event | None = None) -> IngestStats:
+        """Run indefinitely, reconnecting with exponential backoff on error.
+
+        Returns when `stop_event` is set (or the task is cancelled). On a
+        clean WS close from the server, reconnects immediately and resets
+        the backoff delay.
+        """
+        delay = _BACKOFF_INITIAL
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                break
+            try:
+                await self._run_connection(stop_event)
+            except asyncio.CancelledError:
+                raise
+            except ConnectionClosedOK:
+                # Server closed cleanly (WS code 1000) before we could
+                # complete the subscribe or read messages — reconnect at once.
+                if stop_event is not None and stop_event.is_set():
                     break
-                try:
-                    raw = await asyncio.wait_for(stream.__anext__(), timeout=remaining)
-                except (TimeoutError, StopAsyncIteration):
-                    break
-                await self._handle(raw)
+                self._stats.reconnects += 1
+                delay = _BACKOFF_INITIAL
+                continue
+            except Exception as exc:
+                self._log.warning(
+                    "ingest.reconnecting",
+                    error=str(exc),
+                    delay=round(delay, 2),
+                )
+                jitter = delay * random.uniform(-_BACKOFF_JITTER, _BACKOFF_JITTER)
+                await asyncio.sleep(delay + jitter)
+                delay = min(delay * 2, _BACKOFF_MAX)
+                self._stats.reconnects += 1
+                continue
+
+            # _run_connection returned normally: either stop_event fired or the
+            # server closed the connection cleanly.
+            if stop_event is not None and stop_event.is_set():
+                break
+            # Server-initiated close → reconnect immediately, reset backoff.
+            self._stats.reconnects += 1
+            delay = _BACKOFF_INITIAL
+
+        pending = list(self._bg_tasks)
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+
         self._stats.new_markets = self._registry.new_market_count
         self._stats.gaps_detected = self._gaps.gaps_detected
         return self._stats
+
+    async def _run_connection(self, stop_event: asyncio.Event | None) -> None:
+        self._log.info(
+            "ingest.connecting",
+            tickers=len(self._tickers),
+            channels=list(self._channels),
+        )
+        async with KalshiWebSocketClient(
+            self._settings, tickers=self._tickers, channels=self._channels
+        ) as client:
+            drain: asyncio.Task[None] = asyncio.create_task(self._drain_stream(client))
+
+            if stop_event is None:
+                try:
+                    await drain
+                except asyncio.CancelledError:
+                    drain.cancel()
+                    raise
+                return
+
+            stop: asyncio.Task[None] = asyncio.create_task(_wait_for_event(stop_event))
+            try:
+                await asyncio.wait({drain, stop}, return_when=asyncio.FIRST_COMPLETED)
+            except asyncio.CancelledError:
+                drain.cancel()
+                stop.cancel()
+                raise
+
+            for task in (drain, stop):
+                if not task.done():
+                    task.cancel()
+                    with contextlib.suppress(asyncio.CancelledError):
+                        await task
+
+            if drain.done() and not drain.cancelled():
+                exc = drain.exception()
+                if exc is not None:
+                    raise exc
+
+    async def _drain_stream(self, client: KalshiWebSocketClient) -> None:
+        try:
+            async for raw in client.stream():
+                await self._handle(raw)
+        except ConnectionClosedOK:
+            pass  # server closed cleanly; run() will reconnect
 
     async def _handle(self, raw: dict[str, Any]) -> None:
         self._stats.received += 1
@@ -80,7 +172,13 @@ class KalshiIngestWorker:
 
     async def _persist(self, event: CanonicalEvent) -> None:
         self._stats.normalized += 1
-        await self._registry.ensure_market(event.market_id, event.external_market_id)
+        is_new = await self._registry.ensure_market(event.market_id, event.external_market_id)
+        if is_new:
+            task: asyncio.Task[None] = asyncio.create_task(
+                self._enrich_market(event.external_market_id, event.market_id)
+            )
+            self._bg_tasks.add(task)
+            task.add_done_callback(self._bg_tasks.discard)
         try:
             rows = await self._writer.write(event)
         except Exception as exc:
@@ -92,3 +190,43 @@ class KalshiIngestWorker:
             )
             return
         self._stats.rows_written += rows
+        if self._redis is not None:
+            await self._publish(event)
+
+    async def _publish(self, event: CanonicalEvent) -> None:
+        assert self._redis is not None
+        try:
+            await self._redis.xadd("kalshi.events", {"event": event.model_dump_json()})
+            self._stats.events_published += 1
+        except Exception as exc:
+            self._log.warning("ingest.publish_failed", error=str(exc))
+
+    async def _enrich_market(self, ticker: str, market_id: UUID) -> None:
+        from meridian.kalshi.client import KalshiClient
+
+        try:
+            async with KalshiClient(self._settings) as client:
+                market = await client.get_market(ticker)
+        except Exception as exc:
+            self._log.warning("ingest.enrich_failed", ticker=ticker, error=str(exc))
+            return
+
+        async with self._pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE markets
+                SET question   = $1,
+                    category   = $2,
+                    opens_at   = $3,
+                    closes_at  = $4,
+                    updated_at = now()
+                WHERE id = $5
+                  AND question = '(pending REST sync)'
+                """,
+                market.title or ticker,
+                market.category or "unknown",
+                market.open_time,
+                market.close_time,
+                market_id,
+            )
+        self._log.info("ingest.market_enriched", ticker=ticker)

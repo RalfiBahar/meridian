@@ -4,8 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from collections.abc import Awaitable
-from typing import cast
 
 import click
 
@@ -40,13 +38,11 @@ async def check_redis(settings: Settings) -> tuple[bool, dict[str, str]]:
     info: dict[str, str] = {}
     try:
         async with client_context(settings) as client:
-            # redis-py types ping/info as `Awaitable[T] | T` (sync/async union);
-            # the async client always returns the awaitable.
-            pong = await cast(Awaitable[bool], client.ping())
+            pong = await client.ping()
             if not pong:
                 info["error"] = "PING returned falsy"
                 return False, info
-            server_info = await cast(Awaitable[dict[str, object]], client.info(section="server"))
+            server_info = await client.info(section="server")
             info["redis_version"] = str(server_info.get("redis_version", "?"))
     except Exception as exc:
         info["error"] = f"{type(exc).__name__}: {exc}"
