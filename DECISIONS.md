@@ -185,3 +185,48 @@ API but uses play money. Running against demo by default prevents accidental
 production API calls during development. The `endpoints.py` routing is explicit
 and type-checked: adding a new env requires updating the `Literal` type, which
 mypy enforces everywhere the value is used.
+
+---
+
+## ADR-015: Polymarket `market_id` keyed on `token_id`, not `condition_id`
+
+**Decision**: `polymarket_market_id(token_id)` derives the market UUID from
+the CLOB **token ID** (`uuid5(POLYMARKET_UUID_NAMESPACE, token_id)`), not
+from the higher-level `condition_id`.
+
+**Why**: Polymarket's order book, WS subscription (`assets_ids`), and REST
+`/book` endpoint are all keyed by `token_id` — each outcome of a market
+(Yes, No, or more for categorical markets) trades on its own independent
+book. `condition_id` is the *question*, grouping N tokens; it has no order
+book of its own. Treating `token_id` as the identity unit keeps the same
+"one `external_market_id` = one order book = one row in `markets`" shape
+Kalshi already uses (where `ticker` is the order-book unit), so
+`ingest/registry.py`, `ingest/writer.py`, and the `ticks`/`book_snapshots`
+schema all work unmodified for the new venue. `condition_id` and the
+human-readable `question`/`outcome` are stored as REST-enriched metadata on
+the `markets` row, the same way Kalshi's `event_ticker` is metadata rather
+than identity. See `docs/polymarket.md`.
+
+---
+
+## ADR-016: Caller-supplied previous-size for Polymarket book deltas
+
+**Decision**: `normalize_polymarket_message()` stays a pure function of its
+inputs. For the `price_change` message type (which reports the *absolute*
+post-update size at a book level, not a signed increment), the caller
+passes in the previous size via a small stateful `PolymarketBookState`
+cache and the normalizer computes `delta = new_size - previous_size`.
+
+**Why**: Our `BookDeltaEvent.delta` is defined venue-agnostically as a
+signed increment (`events.py`), matching Kalshi's native `delta_fp` wire
+field exactly. Polymarket's wire protocol has no equivalent — `price_change`
+gives the new resting size outright. Computing the increment requires
+remembering the previous size, i.e. state. Rather than make
+`normalize_kalshi_message`/`normalize_polymarket_message` asymmetric (one
+pure, one stateful-by-hidden-global), we keep both normalizers pure and
+push the *minimum* necessary state into an explicit, testable, narrowly-
+scoped object (`PolymarketBookState`) that the ingest worker owns —
+the same pattern already used for `GapDetector`'s per-`sid` sequence
+tracking. The state resets whenever a fresh `book` snapshot arrives, bounding
+drift from any missed message (see "No gap detection" in
+`docs/polymarket.md`).
