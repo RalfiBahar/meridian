@@ -46,8 +46,11 @@ These complete the Phase 1c deliverable.
 - [x] **1d-d** Implement `PolymarketIngestWorker` following `KalshiIngestWorker` pattern
   (no `GapDetector` — Polymarket's market channel has no sequence number,
   see `docs/polymarket.md`; built on new shared `ingest/reconnect.py`)
-- [ ] **1d-e** Add ticker mapping table (`cross_market_links`) or use
+- [x] **1d-e** Add ticker mapping table (`cross_market_links`) or use
   `market_groups` with `group_type='cross_venue'` for overlapping contracts
+  — used the existing `market_groups`/`markets.market_group_id` (no schema
+  change needed); added `meridian markets link-cross-venue <id_a> <id_b>
+  --label ...` (`cli/markets.py`) to make it usable from the CLI
 - [ ] **1d-f** Add Prometheus metrics to both workers:
   - `ingest_events_total{venue, kind}` counter
   - `ingest_lag_seconds{venue}` histogram (now() - event_ts)

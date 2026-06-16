@@ -165,6 +165,9 @@ Click CLI: `python -m meridian.cli <command>`.
 - `polymarket orderbook <token_id>` — fetch L2 book and print spread.
 - `ingest kalshi --tickers ... | ingest polymarket --assets ...` — long-running
   ingest workers; run until SIGINT/SIGTERM.
+- `markets link-cross-venue <id_a> <id_b> --label ...` — pair two `markets`
+  rows (e.g. Kalshi + Polymarket equivalents) into one `market_groups`
+  row with `group_type='cross_venue'`.
 
 ---
 
