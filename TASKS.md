@@ -33,13 +33,19 @@ These complete the Phase 1c deliverable.
 
 ## Phase 1d — Polymarket ingestion + observability (READY)
 
-- [ ] **1d-a** Research Polymarket CLOB WebSocket API; document protocol quirks
+- [x] **1d-a** Research Polymarket CLOB WebSocket API; document protocol quirks
   in `docs/polymarket.md`
-- [ ] **1d-b** Implement `src/meridian/polymarket/` mirror of `kalshi/`:
-  `auth.py`, `client.py`, `ws.py`, `normalize.py`, `models.py`, `endpoints.py`
-- [ ] **1d-c** Add `Venue.POLYMARKET` normalization to `CanonicalEvent`;
-  ensure same idempotency model
-- [ ] **1d-d** Implement `PolymarketIngestWorker` following `KalshiIngestWorker` pattern
+- [x] **1d-b** Implement `src/meridian/polymarket/` mirror of `kalshi/`:
+  `client.py`, `ws.py`, `normalize.py`, `models.py`, `endpoints.py`, `errors.py`
+  (no `auth.py` — read-only CLOB market data needs no authentication, see
+  `docs/polymarket.md`)
+- [x] **1d-c** Add `Venue.POLYMARKET` normalization to `CanonicalEvent`;
+  ensure same idempotency model (market identity keyed on `token_id`, see
+  ADR-015; `MarketRegistry`/`TickWriter` already venue-agnostic, no schema
+  changes needed)
+- [x] **1d-d** Implement `PolymarketIngestWorker` following `KalshiIngestWorker` pattern
+  (no `GapDetector` — Polymarket's market channel has no sequence number,
+  see `docs/polymarket.md`; built on new shared `ingest/reconnect.py`)
 - [ ] **1d-e** Add ticker mapping table (`cross_market_links`) or use
   `market_groups` with `group_type='cross_venue'` for overlapping contracts
 - [ ] **1d-f** Add Prometheus metrics to both workers:
@@ -52,8 +58,10 @@ These complete the Phase 1c deliverable.
 - [ ] **1d-h** Add Docker Compose service for `grafana:latest` with a
   provisioned dashboard JSON
 - [ ] **1d-i** Add Docker Compose service for `prom/prometheus` with scrape config
-- [ ] **1d-j** Write integration test for Polymarket normalizer (similar to
-  `test_kalshi_normalize.py`)
+- [x] **1d-j** Write integration test for Polymarket normalizer (similar to
+  `test_kalshi_normalize.py`) — plus `test_polymarket_client.py` and
+  `test_polymarket_worker.py` (reconnect/backoff/redis-publish/enrichment,
+  mirroring `test_ingest_worker.py`)
 
 ---
 
@@ -164,4 +172,9 @@ These complete the Phase 1c deliverable.
   testing of `TickWriter`, `MarketRegistry`, `GapDetector`
 - [ ] Add `pytest-cov` minimum-coverage gate (e.g., 80%) to CI
 - [ ] Add `make docs` target that lints docs with `markdownlint` or `vale`
+- [ ] Refactor `KalshiIngestWorker.run()` to use the shared
+  `ingest/reconnect.py:run_with_reconnect()` helper extracted during Phase
+  1d (currently only `PolymarketIngestWorker` uses it; left Kalshi's
+  tested 1c.3 reconnect loop untouched to avoid regression risk in this
+  pass — the logic is otherwise identical)
 - [ ] Document Polymarket auth mechanism in `docs/polymarket.md` once researched

@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     kalshi_private_key_path: Path | None = None
     kalshi_request_timeout: float = Field(default=10.0, gt=0)
 
+    # Polymarket — no auth needed for read-only market data (docs/polymarket.md)
+    polymarket_request_timeout: float = Field(default=10.0, gt=0)
+
 
 def get_settings() -> Settings:
     return Settings()

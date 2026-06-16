@@ -47,8 +47,8 @@ Meridian is a streaming research pipeline for prediction markets:
        │                         │
 ┌──────┴─────────────────────────┴──────┐
 │         Ingestion Workers             │
-│  KalshiIngestWorker  (Phase 1c ✓)    │
-│  PolymarketWorker    (Phase 1d)       │
+│  KalshiIngestWorker     (Phase 1c ✓)  │
+│  PolymarketIngestWorker (Phase 1d ✓)  │
 └──────▲───────────────────▲────────────┘
        │                   │
   Kalshi WS+REST     Polymarket CLOB
@@ -98,7 +98,7 @@ Refuses to proceed if a previously-applied file's checksum changed.
 
 ### `meridian.bus.redis`
 Async Redis client factory (`create_client` / `client_context`).
-Phase 1c.3 will add `XADD` publishing to `kalshi.events` and `signals.*` streams.
+`XADD` publishing to `kalshi.events` / `polymarket.events` streams (Phase 1c.3, 1d).
 
 ### `meridian.kalshi`
 - `auth.py` — `KalshiSigner`: signs `f"{ts_ms}{METHOD}{path}"` with RSA-PSS(SHA256).
@@ -115,14 +115,43 @@ Phase 1c.3 will add `XADD` publishing to `kalshi.events` and `signals.*` streams
 - `endpoints.py` — env-routed REST/WS URLs for `demo` and `prod`.
 - `errors.py` — `KalshiError / KalshiAuthError / KalshiHttpError`.
 
+### `meridian.polymarket` (Phase 1d)
+Mirrors `meridian.kalshi`, minus an `auth.py` — the CLOB's read-only market
+data needs no authentication (see `docs/polymarket.md`).
+- `client.py` — `PolymarketClient`: async context manager over `httpx`. Methods:
+  `list_markets`, `get_market`, `get_orderbook`.
+- `ws.py` — `PolymarketWebSocketClient`: async context manager over the
+  public market channel. Subscribes by `asset_ids` (token IDs); sends a
+  `PING` heartbeat every ~10s; flattens batched array frames so `.stream()`
+  always yields one message dict at a time.
+- `normalize.py` — `normalize_polymarket_message(raw, *, book_state)`:
+  returns a **list** of `CanonicalEvent` (a batched `price_change` message
+  can update several book levels at once). `PolymarketBookState` is the
+  small caller-owned cache that turns Polymarket's absolute-size
+  `price_change` updates into the signed `BookDeltaEvent.delta` our schema
+  expects (ADR-016). Market identity is keyed on `token_id`, not the parent
+  `condition_id` (ADR-015).
+- `models.py` — `PolymarketMarket`, `PolymarketToken`, `PolymarketOrderbook`.
+- `endpoints.py` — `REST_BASE`, `WS_URL` (single production deployment, no
+  env routing).
+- `errors.py` — `PolymarketError / PolymarketHttpError`.
+
 ### `meridian.ingest`
-- `worker.py` — `KalshiIngestWorker.run(seconds=N)`: WS → normalize → persist loop.
+- `worker.py` — `KalshiIngestWorker.run(stop_event=...)`: WS → normalize → persist loop.
+- `polymarket_worker.py` — `PolymarketIngestWorker.run(stop_event=...)`: same
+  shape, no `GapDetector` (Polymarket's market channel carries no sequence
+  number — see `docs/polymarket.md`).
+- `reconnect.py` — `run_with_reconnect()`: shared exponential-backoff
+  reconnect loop used by `PolymarketIngestWorker` (Kalshi's worker keeps its
+  own copy for now — see the `TASKS.md` cross-cutting follow-up).
 - `writer.py` — `TickWriter.write(event)`: routes by payload type to the right
-  hypertable; all inserts use `ON CONFLICT DO NOTHING`.
+  hypertable; all inserts use `ON CONFLICT DO NOTHING`. Venue-agnostic.
 - `registry.py` — `MarketRegistry.ensure_market(id, external_id)`: lazy UPSERT
-  market row on first-seen ticker, using in-memory cache to avoid redundant DB hits.
+  market row on first-seen ticker/token, using in-memory cache to avoid
+  redundant DB hits. Venue-agnostic (`venue_code` constructor param).
 - `gap.py` — `GapDetector.observe(raw)`: tracks per-`sid` sequence numbers;
   emits a `signals` row (`signal_type='gap_detected'`) on forward jumps.
+  Kalshi-only — see above.
 - `stats.py` — `IngestStats` dataclass: counters (received, normalized, rows_written, ...).
 
 ### `meridian.cli`
@@ -132,6 +161,10 @@ Click CLI: `python -m meridian.cli <command>`.
 - `kalshi status` — verifies auth handshake against exchange.
 - `kalshi markets [--limit N] [--status open]` — list markets table.
 - `kalshi orderbook <ticker>` — fetch L2 book and print spread.
+- `polymarket markets [--limit N] [--active-only/--all]` — list markets table.
+- `polymarket orderbook <token_id>` — fetch L2 book and print spread.
+- `ingest kalshi --tickers ... | ingest polymarket --assets ...` — long-running
+  ingest workers; run until SIGINT/SIGTERM.
 
 ---
 
@@ -156,31 +189,38 @@ Click CLI: `python -m meridian.cli <command>`.
 | `signals` | `event_ts` | Generic derived signal stream (gap_detected, microprice, ...) |
 
 `ticks.kind` values: `quote`, `trade`, `status`, `book_delta`.
-`book_snapshots.side` values: `bid`, `ask`, `yes`, `no` (Kalshi-native sides preserved).
+`book_snapshots.side` values: `bid`, `ask`, `yes`, `no` (Kalshi-native sides preserved;
+Polymarket uses `bid`/`ask` directly — no migration needed for Phase 1d).
 Size columns use `NUMERIC` (not `INTEGER`) to support Kalshi fractional quantities.
 
 ---
 
-## Event flow (current, Phase 1c)
+## Event flow (current, Phase 1d)
 
 ```
-Kalshi exchange
-  │
-  ▼ WebSocket (~50 ms latency)
-KalshiWebSocketClient.stream()
-  │
-  ▼ normalize_kalshi_message(raw) → CanonicalEvent | None
-KalshiIngestWorker._handle()
-  │
-  ├─► GapDetector.observe(raw)          if gap → INSERT signals
-  ├─► MarketRegistry.ensure_market()    if new ticker → INSERT markets
-  └─► TickWriter.write(event)           INSERT ticks / book_snapshots
-                                         ON CONFLICT DO NOTHING
+Kalshi exchange                          Polymarket CLOB
+  │                                        │
+  ▼ WebSocket (~50 ms latency)             ▼ WebSocket (PING/PONG every 10s)
+KalshiWebSocketClient.stream()            PolymarketWebSocketClient.stream()
+  │                                        │
+  ▼ normalize_kalshi_message(raw)          ▼ normalize_polymarket_message(raw, book_state)
+    → CanonicalEvent | None                  → list[CanonicalEvent]
+KalshiIngestWorker._handle()              PolymarketIngestWorker._handle()
+  │                                        │
+  ├─► GapDetector.observe(raw)             │   (no gap detection — see docs/polymarket.md)
+  ├─► MarketRegistry.ensure_market()       ├─► MarketRegistry.ensure_market()
+  └─► TickWriter.write(event)              └─► TickWriter.write(event)
+      INSERT ticks / book_snapshots            INSERT ticks / book_snapshots
+      ON CONFLICT DO NOTHING                   ON CONFLICT DO NOTHING
+  │                                        │
+  ▼ Redis XADD kalshi.events               ▼ Redis XADD polymarket.events
 ```
+
+Both workers run the same connect → drain → reconnect-with-backoff state
+machine (`ingest/reconnect.py:run_with_reconnect`, see `meridian.ingest`
+above).
 
 **At-least-once delivery + idempotent writes = effectively-exactly-once semantics.**
-
-Phase 1c.3 will add: `Redis XADD` to `kalshi.events` stream + reconnect/backoff.
 
 ---
 

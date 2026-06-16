@@ -1,4 +1,4 @@
-"""CLI subcommands: `meridian ingest {kalshi,...}`."""
+"""CLI subcommands: `meridian ingest {kalshi,polymarket}`."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import click
 from meridian.bus.redis import client_context
 from meridian.config import get_settings
 from meridian.db.postgres import pool_context
-from meridian.ingest import KalshiIngestWorker
+from meridian.ingest import KalshiIngestWorker, PolymarketIngestWorker
 from meridian.kalshi.errors import KalshiAuthError
 from meridian.kalshi.ws import DEFAULT_CHANNELS
 from meridian.logging import configure_logging, get_logger
@@ -90,6 +90,57 @@ async def _run_kalshi(
     except KalshiAuthError as exc:
         log.error("ingest.auth_failed", error=str(exc))
         return 1
+
+    log.info("ingest.stopped", **stats.as_log_fields())
+    return 0
+
+
+@ingest.command(name="polymarket")
+@click.option(
+    "--assets",
+    required=True,
+    help="Comma-separated Polymarket token (asset) IDs to subscribe to.",
+)
+@click.option(
+    "--no-redis",
+    is_flag=True,
+    default=False,
+    help="Disable Redis Streams publishing (useful when Redis is unavailable).",
+)
+def polymarket_cmd(assets: str, no_redis: bool) -> None:
+    """Subscribe to the Polymarket WS, normalize, persist to DB, publish to Redis Streams.
+
+    Runs until SIGINT (Ctrl-C) or SIGTERM. Reconnects automatically with
+    exponential backoff on connection drops.
+    """
+    asset_list = [a.strip() for a in assets.split(",") if a.strip()]
+    if not asset_list:
+        click.echo("error: --assets must contain at least one token ID", err=True)
+        sys.exit(2)
+    sys.exit(asyncio.run(_run_polymarket(asset_list, use_redis=not no_redis)))
+
+
+async def _run_polymarket(asset_ids: list[str], *, use_redis: bool) -> int:
+    settings = get_settings()
+    configure_logging(settings)
+    log = get_logger("meridian.ingest.polymarket")
+
+    stop_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, stop_event.set)
+
+    log.info("ingest.starting", assets=asset_ids)
+    async with pool_context(settings) as pool:
+        if use_redis:
+            async with client_context(settings) as redis_client:
+                worker = PolymarketIngestWorker(
+                    settings, pool, asset_ids=asset_ids, redis=redis_client
+                )
+                stats = await worker.run(stop_event=stop_event)
+        else:
+            worker = PolymarketIngestWorker(settings, pool, asset_ids=asset_ids)
+            stats = await worker.run(stop_event=stop_event)
 
     log.info("ingest.stopped", **stats.as_log_fields())
     return 0
