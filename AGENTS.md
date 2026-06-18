@@ -202,6 +202,51 @@ make check        # lint + typecheck + unit tests
 | 4 | Microstructure analytics + execution simulator | Done |
 | 5 | Implied Fed-rate distribution + event-response model | Done |
 | 6 | Research framework + portfolio optimizer | Done |
-| 7 | Quant Terminal frontend + production polish | Planned |
+| 7 | Quant Terminal frontend + production polish | Done |
+
+## Phase 7 layout (added 2026-06-18)
+
+```
+frontend/             Next.js 15 + TypeScript quant terminal
+├── src/
+│   ├── app/
+│   │   ├── layout.tsx          sticky nav (Markets / Arb / Calibration / FedWatch)
+│   │   ├── markets/
+│   │   │   ├── page.tsx        server component → MarketScannerClient
+│   │   │   └── [id]/page.tsx   server component → MarketDetailClient
+│   │   ├── arb/page.tsx        server component → ArbMonitorClient
+│   │   ├── calibration/page.tsx category-tab calibration dashboard
+│   │   └── fedwatch/page.tsx   3-FOMC-meeting PMF panel
+│   ├── components/
+│   │   ├── MarketScannerClient.tsx  live WS snapshots every 5 s
+│   │   ├── MarketDetailClient.tsx   live WS ticks for a single market
+│   │   └── ArbMonitorClient.tsx     live WS arb snapshots every 30 s
+│   ├── lib/
+│   │   ├── api.ts              typed REST wrappers (fetchMarkets, fetchMarket, …)
+│   │   └── ws.ts               useWs hook (auto-reconnect WebSocket)
+│   └── types/api.ts            TypeScript mirrors of all Pydantic models
+├── Dockerfile                  3-stage Next.js build; standalone output
+├── fly.toml                    Fly.io config for frontend
+└── .env.local.example          MERIDIAN_API_URL / NEXT_PUBLIC_WS_URL / NEXT_PUBLIC_API_KEY
+
+src/meridian/api/    FastAPI gateway
+├── app.py           create_app() factory; RateLimitMiddleware; module-level singleton
+├── auth.py          require_api_key dependency; get_valid_keys(); WS ?api_key=
+├── deps.py          lifespan (pool + redis + hub); get_pool/get_redis/get_hub
+├── hub.py           EventHub: Redis Streams → asyncio Queue fan-out
+├── models.py        Pydantic v2 response schemas for all endpoints
+├── telemetry.py     OTel SDK + FastAPIInstrumentor
+└── routes/
+    ├── health.py        GET /health
+    ├── markets.py       GET/WS /api/v1/markets, GET/WS /api/v1/markets/{id}
+    ├── arb.py           GET/WS /api/v1/arb/violations
+    ├── calibration.py   GET /api/v1/calibration
+    └── fedwatch.py      GET /api/v1/fedwatch
+
+src/meridian/cli/serve.py   meridian serve --host --port --workers --reload
+
+Dockerfile   Backend image (uv + uvicorn 2-worker)
+fly.toml     Backend Fly.io config
+```
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.
