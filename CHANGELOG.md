@@ -8,8 +8,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 7-c through 7-g: enhanced UI panels (live WebSocket feeds, charts)
 - Phase 7-j: Public demo deployment (Fly.io or Railway)
+
+---
+
+## Phase 7-c–g — Frontend panels — 2026-06-18
+
+### Added / Changed (frontend)
+- `src/components/MarketScannerClient.tsx` — `"use client"` component using
+  `useWs("/ws/markets")` for live 5-second snapshots; connection status dot;
+  `markets/page.tsx` now renders it with server-side initial data + status
+  filter tab bar (open / closed / settled)
+- `src/components/MarketDetailClient.tsx` — `"use client"` component using
+  `useWs("/ws/markets/{id}")` for live tick feed; prepends incoming ticks to
+  the front of the list (max 200 kept); live bid/ask header updated from each
+  tick event; `markets/[id]/page.tsx` delegates the live section to it while
+  keeping signals grid and book snapshot server-rendered
+- `src/components/ArbMonitorClient.tsx` — `"use client"` component using
+  `useWs("/ws/arb")` for 30-second arb snapshots; severity-color badges (red
+  ≥50 bps, yellow ≥20 bps); `arb/page.tsx` passes server-fetched initial data
+- `src/app/calibration/page.tsx` — enhanced: category tab bar (fed/econ/
+  politics/crypto/sports), color-coded bar reliability chart with diagonal
+  reference line, green/red metric tiles for Brier/log-loss vs thresholds
+- `src/app/fedwatch/page.tsx` — shows all 3 upcoming FOMC meetings as cards
+  (each with its own server fetch); overlay Kalshi + CME PMF bars per card;
+  bottom strike table with bps-delta column; active-date URL param
 
 ---
 

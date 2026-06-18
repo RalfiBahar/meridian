@@ -1,46 +1,77 @@
+import Link from "next/link";
 import { fetchCalibration } from "@/lib/api";
 import type { ReliabilityBin } from "@/types/api";
 
-export const revalidate = 60;
+export const revalidate = 300;
+
+const CATEGORIES = ["fed", "econ", "politics", "crypto", "sports"];
 
 function ReliabilityChart({ bins }: { bins: ReliabilityBin[] }) {
   const maxCount = Math.max(...bins.map((b) => b.count), 1);
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "flex-end",
-        gap: 4,
-        height: 100,
-        marginBottom: 8,
-        borderBottom: "1px solid var(--border)",
-      }}
-    >
-      {bins.map((b) => {
-        const height = Math.round((b.count / maxCount) * 100);
-        const diff = b.mean_predicted - b.mean_realized;
-        const color =
-          Math.abs(diff) < 0.05
-            ? "var(--green)"
-            : Math.abs(diff) < 0.1
-              ? "var(--yellow)"
-              : "var(--red)";
-        return (
-          <div
-            key={b.bin_center}
-            title={`Predicted: ${(b.mean_predicted * 100).toFixed(1)}% | Realized: ${(b.mean_realized * 100).toFixed(1)}% | n=${b.count}`}
-            style={{
-              flex: 1,
-              height: `${height}%`,
-              background: color,
-              opacity: 0.7,
-              minHeight: 2,
-              borderRadius: "2px 2px 0 0",
-            }}
-          />
-        );
-      })}
+    <div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-end",
+          gap: 3,
+          height: 120,
+          padding: "0 0 2px",
+          borderBottom: "1px solid var(--border)",
+          position: "relative",
+        }}
+      >
+        {/* Perfect calibration diagonal reference */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage:
+              "linear-gradient(to top right, transparent calc(50% - 0.5px), var(--border) calc(50%), transparent calc(50% + 0.5px))",
+            pointerEvents: "none",
+          }}
+        />
+        {bins.map((b) => {
+          const height = Math.round((b.count / maxCount) * 100);
+          const diff = b.mean_predicted - b.mean_realized;
+          const color =
+            Math.abs(diff) < 0.05
+              ? "var(--green)"
+              : Math.abs(diff) < 0.1
+                ? "var(--yellow)"
+                : "var(--red)";
+          return (
+            <div
+              key={b.bin_center}
+              title={`Predicted: ${(b.mean_predicted * 100).toFixed(1)}%\nRealized: ${(b.mean_realized * 100).toFixed(1)}%\nn = ${b.count}`}
+              style={{
+                flex: 1,
+                height: `${height}%`,
+                background: color,
+                opacity: 0.75,
+                minHeight: 2,
+                borderRadius: "2px 2px 0 0",
+                position: "relative",
+                zIndex: 1,
+              }}
+            />
+          );
+        })}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          color: "var(--muted)",
+          fontSize: 10,
+          marginTop: 4,
+        }}
+      >
+        <span>0%</span>
+        <span>Predicted probability (bucket height = # resolved)</span>
+        <span>100%</span>
+      </div>
     </div>
   );
 }
@@ -59,21 +90,37 @@ export default async function CalibrationPage({
     data = await fetchCalibration({ category });
   } catch (e) {
     const msg = String(e);
-    if (msg.includes("404")) {
-      error = "No resolved markets found for this category.";
-    } else {
-      error = msg;
-    }
+    error = msg.includes("404")
+      ? "No resolved markets found for this category."
+      : msg;
   }
 
   return (
     <div className="panel">
       <div className="panel-header">
         <span className="panel-title">Calibration</span>
-        {data && <span className="badge">{data.n_resolved} resolved</span>}
-        <span style={{ marginLeft: "auto", color: "var(--muted)", fontSize: 11 }}>
-          category: {category}
-        </span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {CATEGORIES.map((c) => (
+            <Link
+              key={c}
+              href={`/calibration?category=${c}`}
+              style={{
+                padding: "2px 8px",
+                borderRadius: 4,
+                fontSize: 11,
+                background: c === category ? "var(--accent)" : "var(--surface-2)",
+                color: c === category ? "white" : "var(--muted)",
+              }}
+            >
+              {c}
+            </Link>
+          ))}
+        </div>
+        {data && (
+          <span className="badge" style={{ marginLeft: "auto" }}>
+            {data.n_resolved} resolved
+          </span>
+        )}
       </div>
 
       {error && <div className="error-box">{error}</div>}
@@ -91,11 +138,11 @@ export default async function CalibrationPage({
           >
             {(
               [
-                ["Brier Score", data.brier_score.toFixed(4)],
-                ["Log Loss", data.log_loss.toFixed(4)],
-                ["Resolved", data.n_resolved.toLocaleString()],
-              ] as [string, string][]
-            ).map(([label, val]) => (
+                ["Brier Score", data.brier_score.toFixed(4), data.brier_score < 0.1 ? "var(--green)" : "var(--red)"],
+                ["Log Loss", data.log_loss.toFixed(4), data.log_loss < 0.3 ? "var(--green)" : "var(--red)"],
+                ["Resolved", data.n_resolved.toLocaleString(), "var(--text)"],
+              ] as [string, string, string][]
+            ).map(([label, val, color]) => (
               <div
                 key={label}
                 style={{
@@ -108,39 +155,30 @@ export default async function CalibrationPage({
                 <div style={{ color: "var(--muted)", fontSize: 10, marginBottom: 4 }}>
                   {label}
                 </div>
-                <div style={{ fontSize: 18, fontWeight: 600 }}>{val}</div>
+                <div style={{ fontSize: 18, fontWeight: 600, color }}>{val}</div>
               </div>
             ))}
           </div>
 
-          <div style={{ marginBottom: 8, color: "var(--muted)", fontSize: 11 }}>
-            RELIABILITY DIAGRAM
-          </div>
-          <div style={{ maxWidth: 480 }}>
-            <ReliabilityChart bins={data.reliability_bins} />
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                color: "var(--muted)",
-                fontSize: 10,
-              }}
-            >
-              <span>0¢</span>
-              <span>Predicted probability</span>
-              <span>100¢</span>
+          <div style={{ maxWidth: 520, marginBottom: 24 }}>
+            <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
+              RELIABILITY DIAGRAM
             </div>
+            <ReliabilityChart bins={data.reliability_bins} />
           </div>
 
-          <div style={{ marginTop: 24 }}>
-            <table style={{ maxWidth: 560 }}>
+          <div>
+            <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
+              BIN TABLE
+            </div>
+            <table style={{ maxWidth: 480 }}>
               <thead>
                 <tr>
                   <th>Bin</th>
                   <th>Predicted</th>
                   <th>Realized</th>
-                  <th>Delta</th>
-                  <th>Count</th>
+                  <th>Δ (pp)</th>
+                  <th>n</th>
                 </tr>
               </thead>
               <tbody>
@@ -149,18 +187,20 @@ export default async function CalibrationPage({
                   return (
                     <tr key={b.bin_center}>
                       <td>{(b.bin_center * 100).toFixed(0)}¢</td>
-                      <td>{(b.mean_predicted * 100).toFixed(1)}%</td>
-                      <td>{(b.mean_realized * 100).toFixed(1)}%</td>
+                      <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {(b.mean_predicted * 100).toFixed(1)}%
+                      </td>
+                      <td style={{ fontVariantNumeric: "tabular-nums" }}>
+                        {(b.mean_realized * 100).toFixed(1)}%
+                      </td>
                       <td
                         style={{
-                          color:
-                            Math.abs(delta) < 0.05
-                              ? "var(--green)"
-                              : "var(--red)",
+                          fontVariantNumeric: "tabular-nums",
+                          color: Math.abs(delta) < 0.05 ? "var(--green)" : "var(--red)",
                         }}
                       >
                         {delta >= 0 ? "+" : ""}
-                        {(delta * 100).toFixed(1)}pp
+                        {(delta * 100).toFixed(1)}
                       </td>
                       <td style={{ color: "var(--muted)" }}>{b.count}</td>
                     </tr>

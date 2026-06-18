@@ -161,11 +161,11 @@ These complete the Phase 1c deliverable.
 
 - [x] **7-a** FastAPI app skeleton: `src/meridian/api/`; WebSocket + REST routes
 - [x] **7-b** Next.js + TypeScript frontend scaffold
-- [ ] **7-c** Market scanner panel: live table of top markets by volume/OI
-- [ ] **7-d** Single-market deep view: price chart, depth heatmap, ticks feed
-- [ ] **7-e** Arb monitor panel: live feed of `arb_violation_bps` signals
-- [ ] **7-f** Calibration dashboard: reliability diagrams per category
-- [ ] **7-g** Fed-rate panel: implied PMF for next 3 FOMC meetings + FedWatch
+- [x] **7-c** Market scanner panel: live table of top markets by volume/OI
+- [x] **7-d** Single-market deep view: price chart, depth heatmap, ticks feed
+- [x] **7-e** Arb monitor panel: live feed of `arb_violation_bps` signals
+- [x] **7-f** Calibration dashboard: reliability diagrams per category
+- [x] **7-g** Fed-rate panel: implied PMF for next 3 FOMC meetings + FedWatch
 - [x] **7-h** Rate limiting + auth (API key or JWT)
 - [x] **7-i** OpenTelemetry traces
 - [ ] **7-j** Public demo deployment (Fly.io or Railway)
