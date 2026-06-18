@@ -13,6 +13,7 @@ from meridian.cli.kalshi import kalshi
 from meridian.cli.markets import markets
 from meridian.cli.migrate import migrate
 from meridian.cli.polymarket import polymarket
+from meridian.cli.serve import serve
 
 
 @click.group()
@@ -29,6 +30,7 @@ cli.add_command(migrate)
 cli.add_command(kalshi)
 cli.add_command(polymarket)
 cli.add_command(markets)
+cli.add_command(serve)
 
 
 if __name__ == "__main__":

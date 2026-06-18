@@ -22,6 +22,11 @@ dependencies = [
     "scikit-learn>=1.5.0",
     "cvxpy>=1.5.0",
     "pandas>=2.2.0",
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "opentelemetry-sdk>=1.28.0",
+    "opentelemetry-instrumentation-fastapi>=0.49b0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.28.0",
 ]
 
 [dependency-groups]
@@ -61,6 +66,7 @@ ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = ["B011"]  # allow asserts in tests
+"src/meridian/api/routes/*.py" = ["B008"]  # FastAPI Depends/Query in argument defaults
 
 [tool.ruff.format]
 quote-style = "double"
@@ -78,6 +84,11 @@ explicit_package_bases = true
 [[tool.mypy.overrides]]
 module = ["asyncpg.*", "sklearn.*", "cvxpy.*", "scipy.*", "pandas.*", "yaml.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+warn_unused_ignores = false
+disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

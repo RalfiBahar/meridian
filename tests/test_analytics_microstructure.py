@@ -113,7 +113,7 @@ def test_obi_uses_first_non_null_row() -> None:
         {"bid_size": None, "ask_size": None},
         {"bid_size": "200", "ask_size": "200"},
     ]
-    r = _order_book_imbalance(quotes)
+    r = _order_book_imbalance(quotes)  # type: ignore[arg-type]
     assert r is not None
     assert float(r) == pytest.approx(0.0)
 

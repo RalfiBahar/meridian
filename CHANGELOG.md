@@ -8,7 +8,56 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 7: Quant Terminal frontend + production polish
+- Phase 7-b through 7-g: Next.js frontend panels (market scanner, deep view, arb monitor, calibration, Fed-rate)
+- Phase 7-j: Public demo deployment (Fly.io or Railway)
+
+---
+
+## Phase 7 (backend) — 2026-06-18
+
+### Added
+- `src/meridian/api/__init__.py` — package marker for Phase 7 FastAPI gateway
+- `src/meridian/api/app.py` — `create_app()` factory: FastAPI with CORS,
+  `RateLimitMiddleware` (sliding-window per-key/IP, 120 req/min default),
+  REST + WebSocket routers; module-level `app` singleton for uvicorn
+- `src/meridian/api/auth.py` — `require_api_key` dependency (401 missing /
+  403 wrong); `get_valid_keys()` reads `MERIDIAN_API_KEYS` env var (empty =
+  open access); WebSocket auth via `?api_key=` query param
+- `src/meridian/api/deps.py` — `lifespan` context manager: opens asyncpg
+  pool + Redis client + `EventHub`; `get_pool` / `get_redis` / `get_hub`
+  FastAPI dependency functions
+- `src/meridian/api/hub.py` — `EventHub`: reads from Redis Streams
+  (`kalshi.events`, `polymarket.events`), fan-outs to asyncio Queues by
+  channel (`"all"` or `"market:{uuid}"`); `subscribe` / `unsubscribe`;
+  graceful cancel on `asyncio.CancelledError`; 1s back-off on Redis errors
+- `src/meridian/api/models.py` — Pydantic v2 response schemas: `MarketSummary`,
+  `MarketsResponse`, `MarketDetail`, `MarketSignalsModel`, `TickRow`,
+  `BookLevel`, `ArbViolationsResponse`, `CalibrationResponse`, `FedWatchResponse`
+- `src/meridian/api/routes/health.py` — `GET /health` (public)
+- `src/meridian/api/routes/markets.py` — `GET /api/v1/markets` (paginated,
+  LATERAL JOIN signals), `GET /api/v1/markets/{id}` (deep view),
+  `WS /ws/markets` (5 s snapshots), `WS /ws/markets/{id}` (live EventHub)
+- `src/meridian/api/routes/arb.py` — `GET /api/v1/arb/violations`,
+  `WS /ws/arb` (30 s snapshots)
+- `src/meridian/api/routes/calibration.py` — `GET /api/v1/calibration`
+- `src/meridian/api/routes/fedwatch.py` — `GET /api/v1/fedwatch`
+- `src/meridian/api/telemetry.py` — `configure_telemetry()` (OTLP gRPC
+  exporter) + `instrument_fastapi(app)` via `FastAPIInstrumentor`
+- `src/meridian/cli/serve.py` — `meridian serve [--host] [--port] [--workers]
+  [--reload] [--metrics-port]` CLI command; starts Prometheus metrics server
+  then hands off to uvicorn
+- `tests/test_api.py` — 17 unit tests: health, market list/detail, arb/
+  calibration/fedwatch (empty-pool early-exit paths), auth enforcement
+  (401/403/200), rate limiting (3-req window, health exempt), EventHub
+  subscribe/publish/unsubscribe/drop-full-queue
+
+### Changed
+- `pyproject.toml` — added `fastapi>=0.115.0`, `uvicorn[standard]>=0.34.0`,
+  `opentelemetry-sdk>=1.28.0`, `opentelemetry-instrumentation-fastapi>=0.49b0`,
+  `opentelemetry-exporter-otlp-proto-grpc>=1.28.0`; ruff `B008` per-file
+  ignore for `src/meridian/api/routes/*.py`; mypy test override adds
+  `disallow_untyped_calls = false`
+- `src/meridian/cli/__main__.py` — registered `serve` command
 
 ---
 
