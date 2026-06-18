@@ -110,20 +110,20 @@ These complete the Phase 1c deliverable.
 
 ---
 
-## Phase 4 — Microstructure analytics (BLOCKED on Phase 2)
+## Phase 4 — Microstructure analytics (DONE)
 
-- [ ] **4-a** Rolling effective spread: `ask - bid` at top of book
-- [ ] **4-b** Rolling order-book imbalance (OBI): `(bid_size - ask_size) / (bid_size + ask_size)`
-- [ ] **4-c** Kyle's lambda: OLS of price change on signed volume (rolling window)
-- [ ] **4-d** Amihud illiquidity ratio: `|return| / volume` per period
-- [ ] **4-e** Execution simulator: given a target position and a historical
+- [x] **4-a** Rolling effective spread: `ask - bid` at top of book
+- [x] **4-b** Rolling order-book imbalance (OBI): `(bid_size - ask_size) / (bid_size + ask_size)`
+- [x] **4-c** Kyle's lambda: OLS of price change on signed volume (rolling window)
+- [x] **4-d** Amihud illiquidity ratio: `|return| / volume` per period
+- [x] **4-e** Execution simulator: given a target position and a historical
   book snapshot series, compute expected fill price and slippage estimate
-- [ ] **4-f** Write computed metrics to `signals` table
-- [ ] **4-g** CLI: `meridian analytics microstructure <ticker> [--window 7d]`
+- [x] **4-f** Write computed metrics to `signals` table
+- [x] **4-g** CLI: `meridian analytics microstructure <ticker> [--window 7d]`
 
 ---
 
-## Phase 5 — Fed-rate distribution (BLOCKED on Phase 3)
+## Phase 5 — Fed-rate distribution (READY)
 
 - [ ] **5-a** Identify and group all active Kalshi FED contracts per FOMC date
   into `market_groups`

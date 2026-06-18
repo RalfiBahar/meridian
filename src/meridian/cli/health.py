@@ -38,7 +38,7 @@ async def check_redis(settings: Settings) -> tuple[bool, dict[str, str]]:
     info: dict[str, str] = {}
     try:
         async with client_context(settings) as client:
-            pong = await client.ping()
+            pong = await client.ping()  # type: ignore[misc]  # redis-py stubs: ResponseT = bool | Awaitable[bool]
             if not pong:
                 info["error"] = "PING returned falsy"
                 return False, info

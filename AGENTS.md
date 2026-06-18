@@ -70,14 +70,15 @@ src/meridian/
 │   └── stats.py        # IngestStats: counters for one run
 ├── analytics/
 │   ├── __init__.py
-│   ├── signals.py      # Signal extractors: p_mid/p_bid/p_ask/microprice/depth_weighted_prob
-│   ├── calibration.py  # Brier score, log loss, reliability diagram, isotonic recalibration
-│   └── arb.py          # LP no-arb partition checker + cross-venue divergence monitor
+│   ├── signals.py        # Signal extractors: p_mid/p_bid/p_ask/microprice/depth_weighted_prob
+│   ├── calibration.py    # Brier score, log loss, reliability diagram, isotonic recalibration
+│   ├── arb.py            # LP no-arb partition checker + cross-venue divergence monitor
+│   └── microstructure.py # Effective spread, OBI, Kyle's lambda, Amihud, execution simulator
 └── cli/
     ├── __main__.py     # click entry point
     ├── health.py       # `health` command
     ├── migrate.py      # `migrate` command
-    ├── analytics.py    # `analytics {signals,calibrate}` commands
+    ├── analytics.py    # `analytics {signals,calibrate,microstructure}` commands
     ├── arb.py          # `arb {monitor,group-fed}` commands
     └── kalshi.py       # `kalshi {status,markets,orderbook}` commands
 migrations/
@@ -188,6 +189,7 @@ make check        # lint + typecheck + unit tests
 | 1d | Polymarket ingestion + observability | Done |
 | 2 | Implied probability + calibration engine | Done |
 | 3 | Cross-market no-arb consistency engine | Done |
-| 4–7 | Microstructure, Fed-rate, research, frontend | Planned |
+| 4 | Microstructure analytics + execution simulator | Done |
+| 5–7 | Fed-rate, research, frontend | Planned |
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.

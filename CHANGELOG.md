@@ -8,7 +8,55 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 4: Microstructure analytics
+- Phase 5: Implied Fed-rate distribution + event-response model
+
+---
+
+## Phase 4 — 2026-06-18
+
+### Added
+- `src/meridian/analytics/microstructure.py` — microstructure analytics engine:
+  - `_effective_spread(quotes)` — mean of `ask - bid` across quote ticks; returns
+    `Decimal | None`; uses `sum(spreads, Decimal("0")) / len(spreads)` to avoid
+    float accumulation
+  - `_order_book_imbalance(quotes)` — latest `(bid_size - ask_size) / (bid_size + ask_size)`;
+    skips rows with null sizes; returns `None` when total = 0
+  - `_kyle_lambda(quotes, trades)` — OLS of `ΔP_mid ~ signed_volume` via
+    `np.linalg.lstsq`; signed volume: +size for buy-aggressor, -size for sell;
+    returns `None` when fewer than 2 data points can be aligned
+  - `_amihud_ratio(trades)` — mean of `|return| / volume` across consecutive
+    trade pairs; skips zero-price transitions; returns `None` on < 2 trades
+  - `compute_microstructure(pool, market_id, *, window=7d)` — fetches quote and
+    trade ticks from the `ticks` hypertable, runs all four metrics, returns
+    `MicrostructureMetrics`
+  - `simulate_execution(pool, market_id, *, side, target_quantity)` — walks the
+    latest `book_snapshots` levels (ask/no ascending for buy; bid/yes descending
+    for sell), computes average fill price and slippage; slippage is negated for
+    sell orders (positive = received less than best bid)
+  - `run_microstructure_sweep(pool, *, market_id, window, write_signals)` —
+    sweeps one or all open markets; optionally persists results to `signals`
+  - `_write_signals(pool, m)` — writes `effective_spread`, `obi`, `kyle_lambda`,
+    `amihud` to `signals` table via `ON CONFLICT DO NOTHING`
+  - `MicrostructureMetrics` and `ExecutionEstimate` dataclasses
+- `src/meridian/cli/analytics.py`: added `microstructure` command to `analytics`
+  group — `meridian analytics microstructure <ticker> [--window DAYS]
+  [--simulate-buy QUANTITY] [--simulate-sell QUANTITY] [--write-signals]`
+- `tests/test_analytics_microstructure.py` — 19 unit tests covering:
+  effective spread (basic, empty, null fields), OBI (positive/negative/zero/empty/
+  first-non-null), Amihud (< 2 trades, finite+positive, zero-price guard), Kyle's
+  lambda (insufficient data, returns finite float), simulate_execution (single level,
+  multi-level price walk, empty book, partial fill, invalid side), `MicrostructureMetrics`
+  dataclass construction
+
+### Fixed
+- `microstructure.py`: `best_quote` was not converted to `Decimal` before
+  arithmetic with `avg_fill`; fixed to `Decimal(str(levels[0]["price"]))`
+- `cli/health.py`: pre-existing mypy `[misc]` error on `await client.ping()`
+  suppressed with `# type: ignore[misc]` (redis-py stubs declare `ResponseT =
+  bool | Awaitable[bool]`; the async client always returns an awaitable)
+
+### Changed
+- Phase 4 is now complete — 126 unit tests passing
 
 ---
 

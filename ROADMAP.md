@@ -16,7 +16,7 @@ See `docs/roadmap.md` for the full narrative with resume bullets and concepts ta
 | 1d | Polymarket ingestion + Prometheus/Grafana | ✓ Done |
 | 2 | Implied probability + calibration engine | ✓ Done |
 | 3 | Cross-market no-arb consistency engine | ✓ Done |
-| 4 | Microstructure analytics + execution simulator | Planned |
+| 4 | Microstructure analytics + execution simulator | ✓ Done |
 | 5 | Implied Fed-rate distribution + event-response model | Planned |
 | 6 | Research framework + portfolio optimizer | Planned |
 | 7 | Quant Terminal frontend + production polish | Planned |
@@ -109,13 +109,20 @@ runs continuously, filling `ticks`, `book_snapshots`, `signals` from live data.
 
 ---
 
-## Phase 4 — Microstructure analytics + execution simulator
+## Phase 4 — Microstructure analytics + execution simulator ✓
 
-- Rolling: effective spread, realized spread, depth, OBI, microprice,
-  Kyle's lambda, Amihud illiquidity
-- Execution simulator: given a position + historical book replay, estimate
-  fill price and slippage
-- Per-market liquidity dashboard
+**Built**: `analytics/microstructure.py` — effective spread (mean ask−bid),
+OBI `(bid_size−ask_size)/(bid_size+ask_size)`, Kyle's λ (OLS ΔP∼signed_volume),
+Amihud illiquidity ratio (|return|/volume). Execution simulator walks live book
+levels (ask-side ascending for buy, bid-side descending for sell) computing avg
+fill price and slippage. All four metrics written to `signals` table.
+`cli/analytics.py` extended with `meridian analytics microstructure <ticker>
+[--window DAYS] [--simulate-buy QTY] [--simulate-sell QTY] [--write-signals]`.
+19 unit tests.
+
+**Deliverable**: `meridian analytics microstructure KXFED-26JUN-T3.75 --window 7`
+prints effective spread, OBI, Kyle's lambda, Amihud. `--simulate-buy 100`
+estimates fill for a 100-contract buy.
 
 ---
 
