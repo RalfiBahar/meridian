@@ -7,8 +7,43 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-### Planned
-- Phase 7-j: Public demo deployment (Fly.io or Railway)
+*Phase 7 complete.*
+
+---
+
+## Phase 7-j — Fly.io deployment config — 2026-06-18
+
+### Added
+- `Dockerfile` — multi-stage build for the FastAPI backend: installs uv,
+  syncs deps layer (cached), copies `src/` + `README.md`, runs
+  `uvicorn meridian.api.app:app --workers 2`; verified `docker build` succeeds
+- `.dockerignore` — excludes tests, docs, frontend, and dev artefacts; keeps
+  `README.md` (required by hatchling) and `src/`
+- `fly.toml` — Fly.io config for `meridian-api`: shared CPU 512 MB, `ord`
+  region, HTTPS, auto-stop, `GET /health` health check every 30 s
+- `frontend/Dockerfile` — three-stage Next.js build (deps → builder → runner)
+  using `output: "standalone"` for a minimal production image; `MERIDIAN_API_URL`
+  configurable at build time via `--build-arg`
+- `frontend/.dockerignore` — excludes `node_modules/`, `.next/`, env files
+- `frontend/fly.toml` — Fly.io config for `meridian-frontend`: shared CPU
+  512 MB, `ord` region, HTTPS, `GET /` health check
+- `frontend/next.config.ts` — added `output: "standalone"` for Docker support
+
+### Deploy guide (after `flyctl` install and `flyctl auth login`)
+```sh
+# Backend (requires Postgres + Redis — use Fly Postgres and Upstash Redis)
+flyctl launch --config fly.toml --no-deploy
+flyctl secrets set MERIDIAN_API_KEYS=<key> DATABASE_URL=<pg-url> REDIS_URL=<redis-url>
+flyctl deploy --config fly.toml
+
+# Frontend
+cd frontend
+flyctl launch --config fly.toml --no-deploy
+flyctl secrets set MERIDIAN_API_URL=https://meridian-api.fly.dev \
+                   NEXT_PUBLIC_WS_URL=wss://meridian-api.fly.dev \
+                   NEXT_PUBLIC_API_KEY=<key>
+flyctl deploy --config fly.toml
+```
 
 ---
 

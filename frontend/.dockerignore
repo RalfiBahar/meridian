@@ -1,0 +1,8 @@
+.git
+.gitignore
+*.md
+node_modules/
+.next/
+.env.local
+.env.*.local
+fly.toml

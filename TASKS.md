@@ -168,7 +168,7 @@ These complete the Phase 1c deliverable.
 - [x] **7-g** Fed-rate panel: implied PMF for next 3 FOMC meetings + FedWatch
 - [x] **7-h** Rate limiting + auth (API key or JWT)
 - [x] **7-i** OpenTelemetry traces
-- [ ] **7-j** Public demo deployment (Fly.io or Railway)
+- [x] **7-j** Public demo deployment (Fly.io or Railway)
 - [x] **7-k** Add `fastapi`, `uvicorn[standard]`, `opentelemetry-*` to `pyproject.toml`
 
 ---
