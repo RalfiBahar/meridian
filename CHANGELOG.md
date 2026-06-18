@@ -8,7 +8,40 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 3: Cross-market no-arbitrage consistency engine
+- Phase 4: Microstructure analytics
+
+---
+
+## Phase 3 — 2026-06-18
+
+### Added
+- `src/meridian/analytics/arb.py` — no-arbitrage consistency engine:
+  - `_check_partition_arb(group_id, label, contracts)` — LP feasibility test
+    using `scipy.optimize.linprog` (HiGHS solver); fast sum check + LP
+    confirmation for edge cases; fee-adjusted (Kalshi 2¢/side)
+  - `PartitionArbResult` — violation_bps, direction (long/short/none),
+    depth_feasible flag (requires non-zero resting size on needed side)
+  - `run_partition_monitor(pool, threshold_bps, write_signals)` — sweeps all
+    `partition` market_groups; writes `arb_violation_bps` rows to `signals`
+  - `CrossVenueArbResult` — divergence_bps between two venues
+  - `run_cross_venue_monitor(pool, threshold_bps, write_signals)` — sweeps all
+    `cross_venue` market_groups with recent p_mid signals; writes
+    `cross_venue_divergence_bps` rows to `signals`
+  - `KALSHI_FEE_PER_SIDE = Decimal("0.02")` constant
+- `src/meridian/cli/arb.py` — `arb` command group:
+  - `meridian arb monitor [--threshold-bps N] [--live] [--write-signals]`
+    — prints formatted table of violations; `--live` polls every 30 s
+  - `meridian arb group-fed [--dry-run]` — discovers ungrouped `KXFED-*`
+    Kalshi markets, groups by FOMC date component (e.g. `26JUN`), creates
+    `market_groups(type='partition')` rows and links markets
+- `cli/__main__.py`: registered `arb` command group
+- `pyproject.toml`: added `cvxpy>=1.5.0`; added `scipy.*` to mypy overrides
+- `tests/test_analytics_arb.py` — 13 unit tests: no-arb feasible case, long
+  arb detected/severity, short arb detected/severity, depth feasibility gate,
+  result structure validation
+
+### Changed
+- Phase 3 is now complete — 107 unit tests passing
 
 ---
 

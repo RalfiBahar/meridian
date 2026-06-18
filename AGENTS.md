@@ -71,12 +71,14 @@ src/meridian/
 ├── analytics/
 │   ├── __init__.py
 │   ├── signals.py      # Signal extractors: p_mid/p_bid/p_ask/microprice/depth_weighted_prob
-│   └── calibration.py  # Brier score, log loss, reliability diagram, isotonic recalibration
+│   ├── calibration.py  # Brier score, log loss, reliability diagram, isotonic recalibration
+│   └── arb.py          # LP no-arb partition checker + cross-venue divergence monitor
 └── cli/
     ├── __main__.py     # click entry point
     ├── health.py       # `health` command
     ├── migrate.py      # `migrate` command
     ├── analytics.py    # `analytics {signals,calibrate}` commands
+    ├── arb.py          # `arb {monitor,group-fed}` commands
     └── kalshi.py       # `kalshi {status,markets,orderbook}` commands
 migrations/
     0001_initial_schema.sql
@@ -185,6 +187,7 @@ make check        # lint + typecheck + unit tests
 | 1c | Kalshi WebSocket ingestion worker | Done |
 | 1d | Polymarket ingestion + observability | Done |
 | 2 | Implied probability + calibration engine | Done |
-| 3–7 | No-arb engine, microstructure, frontend | Planned |
+| 3 | Cross-market no-arb consistency engine | Done |
+| 4–7 | Microstructure, Fed-rate, research, frontend | Planned |
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.

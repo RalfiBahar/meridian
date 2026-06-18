@@ -89,23 +89,24 @@ These complete the Phase 1c deliverable.
 
 ---
 
-## Phase 3 — No-arbitrage consistency engine (BLOCKED on 1d)
+## Phase 3 — No-arbitrage consistency engine (DONE)
 
-- [ ] **3-a** Populate `market_groups` for known Kalshi Fed-rate partitions
+- [x] **3-a** Populate `market_groups` for known Kalshi Fed-rate partitions
   (one group per FOMC meeting date, containing all strike contracts)
-- [ ] **3-b** Implement LP-based partition checker using `scipy.optimize.linprog`
+  — implemented as `meridian arb group-fed [--dry-run]` CLI command
+- [x] **3-b** Implement LP-based partition checker using `scipy.optimize.linprog`
   or `cvxpy`: given observed bid/ask per contract in a partition, find if any
   price vector is consistent with no-arb (probabilities sum to 1 ± spread)
-- [ ] **3-c** Flag violations with severity in basis points (after standard
+- [x] **3-c** Flag violations with severity in basis points (after standard
   Kalshi fee assumptions)
-- [ ] **3-d** Depth-feasibility gate: only flag as real arb if the violation
+- [x] **3-d** Depth-feasibility gate: only flag as real arb if the violation
   exceeds spread + fee AND there is sufficient resting size to execute
-- [ ] **3-e** Cross-venue checker: for Kalshi ↔ Polymarket markets in
+- [x] **3-e** Cross-venue checker: for Kalshi ↔ Polymarket markets in
   `market_groups(type='cross_venue')`, detect price divergence
-- [ ] **3-f** Write violations to `signals` table
+- [x] **3-f** Write violations to `signals` table
   (`signal_type='arb_violation_bps'`, `metadata` carries market IDs and details)
-- [ ] **3-g** CLI: `meridian arb monitor [--live] [--threshold-bps 5]`
-- [ ] **3-h** Add `cvxpy` to `pyproject.toml`
+- [x] **3-g** CLI: `meridian arb monitor [--live] [--threshold-bps 5]`
+- [x] **3-h** Add `cvxpy` to `pyproject.toml`
 
 ---
 

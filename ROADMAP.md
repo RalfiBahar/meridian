@@ -15,7 +15,7 @@ See `docs/roadmap.md` for the full narrative with resume bullets and concepts ta
 | 1c | Kalshi WebSocket ingestion worker | ~75% (1c.3 pending) |
 | 1d | Polymarket ingestion + Prometheus/Grafana | ✓ Done |
 | 2 | Implied probability + calibration engine | ✓ Done |
-| 3 | Cross-market no-arb consistency engine | Planned |
+| 3 | Cross-market no-arb consistency engine | ✓ Done |
 | 4 | Microstructure analytics + execution simulator | Planned |
 | 5 | Implied Fed-rate distribution + event-response model | Planned |
 | 6 | Research framework + portfolio optimizer | Planned |
@@ -100,7 +100,7 @@ runs continuously, filling `ticks`, `book_snapshots`, `signals` from live data.
 
 ---
 
-## Phase 3 — Cross-market no-arbitrage consistency engine
+## Phase 3 — Cross-market no-arbitrage consistency engine ✓
 
 - `market_groups` populated for known partitions (e.g., all FOMC-date strikes)
 - LP-based consistency checker: detect violations in [0,1] USD after fees
