@@ -14,7 +14,7 @@ See `docs/roadmap.md` for the full narrative with resume bullets and concepts ta
 | 1b | Kalshi REST client + RSA-PSS auth | ✓ Done |
 | 1c | Kalshi WebSocket ingestion worker | ~75% (1c.3 pending) |
 | 1d | Polymarket ingestion + Prometheus/Grafana | ✓ Done |
-| 2 | Implied probability + calibration engine | Planned |
+| 2 | Implied probability + calibration engine | ✓ Done |
 | 3 | Cross-market no-arb consistency engine | Planned |
 | 4 | Microstructure analytics + execution simulator | Planned |
 | 5 | Implied Fed-rate distribution + event-response model | Planned |
@@ -90,7 +90,7 @@ runs continuously, filling `ticks`, `book_snapshots`, `signals` from live data.
 
 ---
 
-## Phase 2 — Implied probability + calibration engine
+## Phase 2 — Implied probability + calibration engine ✓
 
 - `p_mid`, `p_bid`, `p_ask`, microprice, depth-weighted implied probability
 - Calibration engine: Brier score + log loss over resolved markets

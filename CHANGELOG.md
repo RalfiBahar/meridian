@@ -8,7 +8,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 2: Implied probability + calibration engine
+- Phase 3: Cross-market no-arbitrage consistency engine
+
+---
+
+## Phase 2 — 2026-06-18
+
+### Added
+- `src/meridian/analytics/` package — analytics engine (Phase 2)
+- `src/meridian/analytics/signals.py`:
+  - `compute_market_signals(pool, market_id)` — reads latest quote tick and
+    book snapshot, returns `MarketSignals` (p_bid, p_ask, p_mid, microprice,
+    depth_weighted_prob)
+  - `run_signal_sweep(pool, *, category)` — sweeps all open markets, writes
+    signals to the `signals` table; skips markets with no quote data yet
+  - `_midprice`, `_microprice`, `_depth_weighted_prob` — pure/async helpers
+  - Uses `Decimal` throughout; converts to `float` only at the
+    `signals.value` boundary (DOUBLE PRECISION column)
+- `src/meridian/analytics/calibration.py`:
+  - `brier_score(p, o)`, `log_loss(p, o)` — pure NumPy implementations
+  - `reliability_diagram(p, o, n_bins=10)` — equal-width binning; handles
+    `p == 1.0` edge case in the last bin
+  - `isotonic_recalibrate(p, o)` — wraps `sklearn.isotonic.IsotonicRegression`;
+    non-parametric monotone post-hoc calibration
+  - `run_calibration(pool, category, lookback, n_bins)` — queries resolved
+    markets + historical p_mid signals, returns `CalibrationResult`
+  - `write_calibration_signals(pool, result)` — persists
+    `calibration_brier`, `calibration_log_loss`, `calibration_reliability`
+    rows to the `signals` table
+  - `CalibrationResult.summary()` — human-readable text table
+- `src/meridian/cli/analytics.py` — `analytics` command group:
+  - `meridian analytics signals [--category X]` — run signal sweep
+  - `meridian analytics calibrate [--category X] [--lookback DAYS]
+    [--bins N] [--write-signals]` — print calibration report
+- `cli/__main__.py`: registered `analytics` command group
+- `pyproject.toml`: added `numpy>=1.26.0`, `scipy>=1.13.0`,
+  `scikit-learn>=1.5.0` dependencies
+- `pyproject.toml`: added `sklearn.*` to `mypy` `ignore_missing_imports`
+  overrides
+- `tests/test_analytics_signals.py` — 14 unit tests covering pure functions
+  and mock-DB async paths: midprice, microprice, depth-weighted probability,
+  `compute_market_signals`
+- `tests/test_analytics_calibration.py` — 12 unit tests: Brier score symmetry,
+  log-loss at clip boundary and uniform prediction, reliability diagram
+  binning and edge cases, isotonic recalibration monotonicity and
+  non-increase-of-Brier-score on training set
+
+### Changed
+- Phase 2 is now complete — 98 unit tests passing
 
 ---
 

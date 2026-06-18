@@ -68,10 +68,15 @@ src/meridian/
 │   ├── registry.py     # MarketRegistry: lazy UPSERT market rows
 │   ├── gap.py          # GapDetector: sequence-number gap → signals row
 │   └── stats.py        # IngestStats: counters for one run
+├── analytics/
+│   ├── __init__.py
+│   ├── signals.py      # Signal extractors: p_mid/p_bid/p_ask/microprice/depth_weighted_prob
+│   └── calibration.py  # Brier score, log loss, reliability diagram, isotonic recalibration
 └── cli/
     ├── __main__.py     # click entry point
     ├── health.py       # `health` command
     ├── migrate.py      # `migrate` command
+    ├── analytics.py    # `analytics {signals,calibrate}` commands
     └── kalshi.py       # `kalshi {status,markets,orderbook}` commands
 migrations/
     0001_initial_schema.sql
@@ -179,6 +184,7 @@ make check        # lint + typecheck + unit tests
 | 1b | Kalshi REST client + RSA-PSS auth | Done |
 | 1c | Kalshi WebSocket ingestion worker | Done |
 | 1d | Polymarket ingestion + observability | Done |
-| 2–7 | Analytics, arb engine, frontend | Planned |
+| 2 | Implied probability + calibration engine | Done |
+| 3–7 | No-arb engine, microstructure, frontend | Planned |
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.

@@ -68,24 +68,24 @@ These complete the Phase 1c deliverable.
 
 ---
 
-## Phase 2 — Implied probability + calibration engine (BLOCKED on 1c)
+## Phase 2 — Implied probability + calibration engine (DONE)
 
-- [ ] **2-a** Implement `p_mid`, `p_bid`, `p_ask` extractor from `ticks` table
+- [x] **2-a** Implement `p_mid`, `p_bid`, `p_ask` extractor from `ticks` table
   (read latest quote row per market)
-- [ ] **2-b** Implement microprice: `(bid × ask_size + ask × bid_size) / (bid_size + ask_size)`
-- [ ] **2-c** Implement depth-weighted implied probability with confidence
+- [x] **2-b** Implement microprice: `(bid * ask_size + ask * bid_size) / (bid_size + ask_size)`
+- [x] **2-c** Implement depth-weighted implied probability with confidence
   interval scaled by total resting liquidity
-- [ ] **2-d** Write computed signals to `signals` table
+- [x] **2-d** Write computed signals to `signals` table
   (`signal_type` = `p_mid`, `microprice`, etc.)
-- [ ] **2-e** Calibration engine: for each resolved market, join `ticks`
+- [x] **2-e** Calibration engine: for each resolved market, join `ticks`
   history to final `settled_value`; compute Brier score and log loss at
   each time point
-- [ ] **2-f** Reliability diagram computation: bin [0,1] into 10 buckets,
+- [x] **2-f** Reliability diagram computation: bin [0,1] into 10 buckets,
   compute mean predicted vs mean realized per bucket, store as `signals` rows
-- [ ] **2-g** Isotonic regression recalibration (using `scikit-learn` or
+- [x] **2-g** Isotonic regression recalibration (using `scikit-learn` or
   custom implementation)
-- [ ] **2-h** CLI: `meridian analytics calibrate --category fed [--lookback 90d]`
-- [ ] **2-i** Add `scipy`, `numpy`, `scikit-learn` to `pyproject.toml` dependencies
+- [x] **2-h** CLI: `meridian analytics calibrate --category fed [--lookback 90d]`
+- [x] **2-i** Add `scipy`, `numpy`, `scikit-learn` to `pyproject.toml` dependencies
 
 ---
 

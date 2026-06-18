@@ -17,6 +17,9 @@ dependencies = [
     "cryptography>=48.0.0",
     "websockets>=16.0",
     "prometheus-client>=0.21.0",
+    "numpy>=1.26.0",
+    "scipy>=1.13.0",
+    "scikit-learn>=1.5.0",
 ]
 
 [dependency-groups]
@@ -71,7 +74,7 @@ namespace_packages = true
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["asyncpg.*"]
+module = ["asyncpg.*", "sklearn.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
