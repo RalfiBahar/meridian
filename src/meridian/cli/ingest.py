@@ -15,6 +15,7 @@ from meridian.ingest import KalshiIngestWorker, PolymarketIngestWorker
 from meridian.kalshi.errors import KalshiAuthError
 from meridian.kalshi.ws import DEFAULT_CHANNELS
 from meridian.logging import configure_logging, get_logger
+from meridian.metrics import start_metrics_server
 
 
 @click.group(name="ingest")
@@ -40,7 +41,13 @@ def ingest() -> None:
     default=False,
     help="Disable Redis Streams publishing (useful when Redis is unavailable).",
 )
-def kalshi_cmd(tickers: str, channels: str, no_redis: bool) -> None:
+@click.option(
+    "--metrics-port",
+    default=9091,
+    show_default=True,
+    help="Port for the Prometheus /metrics HTTP endpoint (0 = disabled).",
+)
+def kalshi_cmd(tickers: str, channels: str, no_redis: bool, metrics_port: int) -> None:
     """Subscribe to Kalshi WS, normalize, persist to DB, and publish to Redis Streams.
 
     Runs until SIGINT (Ctrl-C) or SIGTERM. Reconnects automatically with
@@ -51,6 +58,8 @@ def kalshi_cmd(tickers: str, channels: str, no_redis: bool) -> None:
     if not ticker_list:
         click.echo("error: --tickers must contain at least one ticker", err=True)
         sys.exit(2)
+    if metrics_port > 0:
+        start_metrics_server(metrics_port)
     sys.exit(asyncio.run(_run_kalshi(ticker_list, channel_tuple, use_redis=not no_redis)))
 
 
@@ -83,9 +92,7 @@ async def _run_kalshi(
                     )
                     stats = await worker.run(stop_event=stop_event)
             else:
-                worker = KalshiIngestWorker(
-                    settings, pool, tickers=tickers, channels=channels
-                )
+                worker = KalshiIngestWorker(settings, pool, tickers=tickers, channels=channels)
                 stats = await worker.run(stop_event=stop_event)
     except KalshiAuthError as exc:
         log.error("ingest.auth_failed", error=str(exc))
@@ -107,7 +114,13 @@ async def _run_kalshi(
     default=False,
     help="Disable Redis Streams publishing (useful when Redis is unavailable).",
 )
-def polymarket_cmd(assets: str, no_redis: bool) -> None:
+@click.option(
+    "--metrics-port",
+    default=9092,
+    show_default=True,
+    help="Port for the Prometheus /metrics HTTP endpoint (0 = disabled).",
+)
+def polymarket_cmd(assets: str, no_redis: bool, metrics_port: int) -> None:
     """Subscribe to the Polymarket WS, normalize, persist to DB, publish to Redis Streams.
 
     Runs until SIGINT (Ctrl-C) or SIGTERM. Reconnects automatically with
@@ -117,6 +130,8 @@ def polymarket_cmd(assets: str, no_redis: bool) -> None:
     if not asset_list:
         click.echo("error: --assets must contain at least one token ID", err=True)
         sys.exit(2)
+    if metrics_port > 0:
+        start_metrics_server(metrics_port)
     sys.exit(asyncio.run(_run_polymarket(asset_list, use_redis=not no_redis)))
 
 

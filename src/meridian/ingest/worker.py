@@ -25,6 +25,12 @@ from meridian.ingest.writer import TickWriter
 from meridian.kalshi.normalize import normalize_kalshi_message
 from meridian.kalshi.ws import DEFAULT_CHANNELS, KalshiWebSocketClient
 from meridian.logging import get_logger
+from meridian.metrics import (
+    ingest_events_total,
+    ingest_gaps_total,
+    ingest_lag_seconds,
+    ingest_reconnects_total,
+)
 
 _BACKOFF_INITIAL = 1.0
 _BACKOFF_MAX = 60.0
@@ -78,6 +84,7 @@ class KalshiIngestWorker:
                 if stop_event is not None and stop_event.is_set():
                     break
                 self._stats.reconnects += 1
+                ingest_reconnects_total.labels(venue="kalshi").inc()
                 delay = _BACKOFF_INITIAL
                 continue
             except Exception as exc:
@@ -90,6 +97,7 @@ class KalshiIngestWorker:
                 await asyncio.sleep(delay + jitter)
                 delay = min(delay * 2, _BACKOFF_MAX)
                 self._stats.reconnects += 1
+                ingest_reconnects_total.labels(venue="kalshi").inc()
                 continue
 
             # _run_connection returned normally: either stop_event fired or the
@@ -98,6 +106,7 @@ class KalshiIngestWorker:
                 break
             # Server-initiated close → reconnect immediately, reset backoff.
             self._stats.reconnects += 1
+            ingest_reconnects_total.labels(venue="kalshi").inc()
             delay = _BACKOFF_INITIAL
 
         pending = list(self._bg_tasks)
@@ -155,7 +164,9 @@ class KalshiIngestWorker:
 
     async def _handle(self, raw: dict[str, Any]) -> None:
         self._stats.received += 1
-        await self._gaps.observe(raw)
+        gap = await self._gaps.observe(raw)
+        if gap > 0:
+            ingest_gaps_total.labels(venue="kalshi").inc()
         event = normalize_kalshi_message(raw)
         if event is None:
             self._classify_skipped(raw)
@@ -190,6 +201,9 @@ class KalshiIngestWorker:
             )
             return
         self._stats.rows_written += rows
+        ingest_events_total.labels(venue="kalshi", kind=event.payload.kind.value).inc()
+        lag = (event.ingest_ts - event.event_ts).total_seconds()
+        ingest_lag_seconds.labels(venue="kalshi").observe(lag)
         if self._redis is not None:
             await self._publish(event)
 

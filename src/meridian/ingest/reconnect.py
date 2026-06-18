@@ -47,6 +47,7 @@ async def run_with_reconnect(
     stats: IngestStats,
     log: FilteringBoundLogger,
     stop_event: asyncio.Event | None = None,
+    on_reconnect: Callable[[], None] | None = None,
 ) -> None:
     """Run indefinitely, reconnecting with exponential backoff on error.
 
@@ -68,6 +69,8 @@ async def run_with_reconnect(
             if stop_event is not None and stop_event.is_set():
                 return
             stats.reconnects += 1
+            if on_reconnect is not None:
+                on_reconnect()
             delay = _BACKOFF_INITIAL
             continue
         except Exception as exc:
@@ -76,6 +79,8 @@ async def run_with_reconnect(
             await asyncio.sleep(delay + jitter)
             delay = min(delay * 2, _BACKOFF_MAX)
             stats.reconnects += 1
+            if on_reconnect is not None:
+                on_reconnect()
             continue
 
         # _run_connection returned normally: either stop_event fired or the
@@ -84,6 +89,8 @@ async def run_with_reconnect(
             return
         # Server-initiated close -> reconnect immediately, reset backoff.
         stats.reconnects += 1
+        if on_reconnect is not None:
+            on_reconnect()
         delay = _BACKOFF_INITIAL
 
 

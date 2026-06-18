@@ -1,0 +1,72 @@
+{
+  "title": "Meridian Ingest Workers",
+  "uid": "meridian-ingest",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Events / sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "sum by (venue, kind) (rate(ingest_events_total[1m]))",
+          "legendFormat": "{{venue}} / {{kind}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Ingest Lag (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "histogram_quantile(0.50, sum by (venue, le) (rate(ingest_lag_seconds_bucket[1m])))",
+          "legendFormat": "{{venue}} p50"
+        },
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (venue, le) (rate(ingest_lag_seconds_bucket[1m])))",
+          "legendFormat": "{{venue}} p95"
+        },
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by (venue, le) (rate(ingest_lag_seconds_bucket[1m])))",
+          "legendFormat": "{{venue}} p99"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Reconnects / min",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "sum by (venue) (rate(ingest_reconnects_total[1m])) * 60",
+          "legendFormat": "{{venue}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Gaps Detected / min",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus" },
+          "expr": "sum by (venue) (rate(ingest_gaps_total[1m])) * 60",
+          "legendFormat": "{{venue}}"
+        }
+      ]
+    }
+  ]
+}

@@ -13,7 +13,7 @@ See `docs/roadmap.md` for the full narrative with resume bullets and concepts ta
 | 1a | Canonical event schema + SQL migrations | ✓ Done |
 | 1b | Kalshi REST client + RSA-PSS auth | ✓ Done |
 | 1c | Kalshi WebSocket ingestion worker | ~75% (1c.3 pending) |
-| 1d | Polymarket ingestion + Prometheus/Grafana | Planned |
+| 1d | Polymarket ingestion + Prometheus/Grafana | ✓ Done |
 | 2 | Implied probability + calibration engine | Planned |
 | 3 | Cross-market no-arb consistency engine | Planned |
 | 4 | Microstructure analytics + execution simulator | Planned |
@@ -79,7 +79,7 @@ runs continuously, filling `ticks`, `book_snapshots`, `signals` from live data.
 
 ---
 
-## Phase 1d — Polymarket ingestion + observability
+## Phase 1d — Polymarket ingestion + observability ✓
 
 - Mirror of Kalshi worker for Polymarket CLOB API
 - Same canonical schema, same idempotency model, same gap detection

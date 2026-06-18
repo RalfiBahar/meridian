@@ -8,7 +8,51 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 1d: Polymarket CLOB ingestion + Prometheus/Grafana observability
+- Phase 2: Implied probability + calibration engine
+
+---
+
+## Phase 1d — 2026-06-18
+
+### Added
+- `src/meridian/metrics.py` — module-level Prometheus metric objects shared by
+  both ingest workers: `ingest_events_total{venue,kind}` (Counter),
+  `ingest_lag_seconds{venue}` (Histogram, 10 buckets 50 ms–60 s),
+  `ingest_reconnects_total{venue}` (Counter), `ingest_gaps_total{venue}`
+  (Counter); `start_metrics_server(port)` wraps
+  `prometheus_client.start_http_server` (see ADR-017)
+- `prometheus-client>=0.21.0` added to `pyproject.toml` dependencies
+- Metric observations wired into `KalshiIngestWorker`:
+  - `ingest_events_total` + `ingest_lag_seconds` in `_persist()` after each
+    successful write
+  - `ingest_reconnects_total` in all three reconnect paths in `run()`
+  - `ingest_gaps_total` in `_handle()` when `GapDetector.observe()` returns > 0
+- Metric observations wired into `PolymarketIngestWorker`:
+  - `ingest_events_total` + `ingest_lag_seconds` in `_persist()`
+  - `ingest_reconnects_total` via new `on_reconnect` callback in
+    `run_with_reconnect()`
+- `ingest/reconnect.py`: added `on_reconnect: Callable[[], None] | None = None`
+  parameter to `run_with_reconnect()`; called at every reconnect point
+- `cli/ingest.py`: `--metrics-port` option on both `ingest kalshi`
+  (default 9091) and `ingest polymarket` (default 9092) — calls
+  `start_metrics_server(port)` at startup; pass 0 to disable
+- `docker/prometheus/prometheus.yml` — Prometheus scrape config targeting
+  both ingest workers at `host.docker.internal:9091` and `:9092`
+- `docker/grafana/provisioning/datasources/prometheus.yml` — auto-provisions
+  the Prometheus data source in Grafana
+- `docker/grafana/provisioning/dashboards/dashboards.yml` — Grafana dashboard
+  provider pointing at `/var/lib/grafana/dashboards`
+- `docker/grafana/dashboards/meridian-ingest.json` — four-panel dashboard:
+  Events/sec (by venue+kind), Ingest Lag p50/p95/p99 (by venue), Reconnects/min,
+  Gaps/min
+- `docker-compose.yml`: added `prometheus` (port 9090, 30-day retention) and
+  `grafana` (port 3000, anonymous viewer, pre-provisioned dashboard) services;
+  added `prometheus-data` and `grafana-data` named volumes
+- `DECISIONS.md` ADR-017: rationale for using `prometheus_client.start_http_server`
+
+### Changed
+- Phase 1d is now complete — both ingest workers emit live Prometheus metrics;
+  Grafana dashboard auto-provisions on `make up`
 
 ---
 

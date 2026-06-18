@@ -230,3 +230,21 @@ the same pattern already used for `GapDetector`'s per-`sid` sequence
 tracking. The state resets whenever a fresh `book` snapshot arrives, bounding
 drift from any missed message (see "No gap detection" in
 `docs/polymarket.md`).
+
+---
+
+## ADR-017: `prometheus_client.start_http_server`, not a custom aiohttp app
+
+**Decision**: The `/metrics` endpoint (Phase 1d) is `prometheus_client`'s
+built-in `start_http_server()`, called once at ingest-CLI startup, not a
+hand-rolled `aiohttp`/`http.server` route inside the ingest worker.
+
+**Why**: `start_http_server()` already does exactly what TASKS.md 1d-g asks
+for — a minimal HTTP server in a background thread serving `/metrics` —
+and it's the library's own supported way to expose collectors registered
+in the default `CollectorRegistry`. Writing a second HTTP server (aiohttp
+or stdlib `http.server`) to do the same job would be net-new code with no
+behavioral difference, just to avoid a one-line dependency call. If
+Meridian later needs a real HTTP surface (health checks, readiness probes,
+the Phase 7 API gateway), that's the point to introduce a proper ASGI app;
+metrics alone don't justify it yet.

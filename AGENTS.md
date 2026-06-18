@@ -47,6 +47,7 @@ scores, no-arbitrage violations, microstructure metrics).
 src/meridian/
 ├── config.py           # Settings via pydantic-settings; MERIDIAN_* env vars
 ├── logging.py          # structlog setup; get_logger("meridian.module.name")
+├── metrics.py          # Prometheus metric objects + start_metrics_server(); shared by workers
 ├── events.py           # CanonicalEvent + discriminated union (the core type)
 ├── db/
 │   ├── postgres.py     # asyncpg pool: create_pool() / pool_context()
@@ -169,7 +170,7 @@ make check        # lint + typecheck + unit tests
 
 ---
 
-## Current phase status (as of 2026-06-15)
+## Current phase status (as of 2026-06-18)
 
 | Phase | Description | Status |
 |---|---|---|
@@ -177,7 +178,7 @@ make check        # lint + typecheck + unit tests
 | 1a | Canonical event schema + migrations | Done |
 | 1b | Kalshi REST client + RSA-PSS auth | Done |
 | 1c | Kalshi WebSocket ingestion worker | Done |
-| 1d | Polymarket ingestion + observability | Ready |
+| 1d | Polymarket ingestion + observability | Done |
 | 2–7 | Analytics, arb engine, frontend | Planned |
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.

@@ -28,6 +28,7 @@ from meridian.ingest.registry import MarketRegistry
 from meridian.ingest.stats import IngestStats
 from meridian.ingest.writer import TickWriter
 from meridian.logging import get_logger
+from meridian.metrics import ingest_events_total, ingest_lag_seconds, ingest_reconnects_total
 from meridian.polymarket.normalize import PolymarketBookState, normalize_polymarket_message
 from meridian.polymarket.ws import PolymarketWebSocketClient
 
@@ -65,6 +66,7 @@ class PolymarketIngestWorker:
             stats=self._stats,
             log=self._log,
             stop_event=stop_event,
+            on_reconnect=lambda: ingest_reconnects_total.labels(venue="polymarket").inc(),
         )
         pending = list(self._bg_tasks)
         if pending:
@@ -115,6 +117,9 @@ class PolymarketIngestWorker:
             )
             return
         self._stats.rows_written += rows
+        ingest_events_total.labels(venue="polymarket", kind=event.payload.kind.value).inc()
+        lag = (event.ingest_ts - event.event_ts).total_seconds()
+        ingest_lag_seconds.labels(venue="polymarket").observe(lag)
         if self._redis is not None:
             await self._publish(event)
 

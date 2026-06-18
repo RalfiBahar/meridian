@@ -51,16 +51,16 @@ These complete the Phase 1c deliverable.
   — used the existing `market_groups`/`markets.market_group_id` (no schema
   change needed); added `meridian markets link-cross-venue <id_a> <id_b>
   --label ...` (`cli/markets.py`) to make it usable from the CLI
-- [ ] **1d-f** Add Prometheus metrics to both workers:
+- [x] **1d-f** Add Prometheus metrics to both workers:
   - `ingest_events_total{venue, kind}` counter
   - `ingest_lag_seconds{venue}` histogram (now() - event_ts)
   - `ingest_reconnects_total{venue}` counter
   - `ingest_gaps_total{venue}` counter
-- [ ] **1d-g** Add `prometheus_client` dependency and `/metrics` HTTP endpoint
+- [x] **1d-g** Add `prometheus_client` dependency and `/metrics` HTTP endpoint
   (minimal `aiohttp` or `http.server` in a background thread)
-- [ ] **1d-h** Add Docker Compose service for `grafana:latest` with a
+- [x] **1d-h** Add Docker Compose service for `grafana:latest` with a
   provisioned dashboard JSON
-- [ ] **1d-i** Add Docker Compose service for `prom/prometheus` with scrape config
+- [x] **1d-i** Add Docker Compose service for `prom/prometheus` with scrape config
 - [x] **1d-j** Write integration test for Polymarket normalizer (similar to
   `test_kalshi_normalize.py`) — plus `test_polymarket_client.py` and
   `test_polymarket_worker.py` (reconnect/backoff/redis-publish/enrichment,
