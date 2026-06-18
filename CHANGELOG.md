@@ -8,8 +8,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 7-b through 7-g: Next.js frontend panels (market scanner, deep view, arb monitor, calibration, Fed-rate)
+- Phase 7-c through 7-g: enhanced UI panels (live WebSocket feeds, charts)
 - Phase 7-j: Public demo deployment (Fly.io or Railway)
+
+---
+
+## Phase 7-b — Frontend scaffold — 2026-06-18
+
+### Added
+- `frontend/` — Next.js 15 + TypeScript App Router project
+  - `package.json` — deps: `next`, `react`, `react-dom`, TypeScript, ESLint
+  - `tsconfig.json` — strict TypeScript; `@/*` path alias for `src/`
+  - `next.config.ts` — rewrites `/api/*` → `MERIDIAN_API_URL` to proxy the
+    FastAPI backend (eliminates CORS in dev; single origin in prod)
+  - `.env.local.example` — documents `MERIDIAN_API_URL`, `NEXT_PUBLIC_WS_URL`,
+    `NEXT_PUBLIC_API_KEY`
+  - `src/types/api.ts` — TypeScript interfaces mirroring all Pydantic response
+    models: `MarketSummary`, `MarketsResponse`, `MarketDetail`, `MarketSignals`,
+    `TickRow`, `BookLevel`, `ArbViolationsResponse`, `CalibrationResponse`,
+    `FedWatchResponse`, `FedPMF`, `WsEvent`
+  - `src/lib/api.ts` — typed `apiFetch` helper; exports `fetchMarkets`,
+    `fetchMarket`, `fetchArbViolations`, `fetchCalibration`, `fetchFedWatch`;
+    server-side calls use `MERIDIAN_API_URL` directly; client-side calls use
+    the proxy rewrite; `X-API-Key` header from `NEXT_PUBLIC_API_KEY`
+  - `src/lib/ws.ts` — `useWs` React hook: opens WebSocket to
+    `NEXT_PUBLIC_WS_URL`, parses JSON frames into typed `WsEvent`, reconnects
+    on close with configurable delay
+  - `src/app/globals.css` — dark terminal theme (CSS variables, monospace font,
+    table/badge/panel utilities)
+  - `src/app/layout.tsx` — root layout: sticky nav with links to all 5 panels
+  - `src/app/page.tsx` — redirects `/` → `/markets`
+  - `src/app/markets/page.tsx` — server-rendered market scanner: paginated
+    table with bid/ask/mid/microprice/spread, linked tickers, pagination
+  - `src/app/markets/[id]/page.tsx` — server-rendered market deep view:
+    signals grid, L2 book (bid/ask columns), recent ticks table
+  - `src/app/arb/page.tsx` — server-rendered arb monitor: partition violations
+    + cross-venue divergences with severity badges
+  - `src/app/calibration/page.tsx` — server-rendered calibration dashboard:
+    Brier/log-loss metrics, bar reliability chart, bin-level table
+  - `src/app/fedwatch/page.tsx` — server-rendered Fed-rate panel: Kalshi vs
+    CME PMF bar charts, per-strike probability table with delta column
 
 ---
 
