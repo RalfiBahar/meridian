@@ -139,21 +139,25 @@ These complete the Phase 1c deliverable.
 
 ---
 
-## Phase 6 — Research framework (READY)
+## Phase 6 — Research framework (DONE)
 
-- [ ] **6-a** Add `experiments` OLTP table (migration): `id`, `name`, `code_sha`,
-  `params JSONB`, `data_window`, `metrics JSONB`, `notes`, `created_at`
-- [ ] **6-b** CLI: `meridian experiment run <name>` — discovers `experiments/<name>/run.py`,
-  captures output, writes row to `experiments`
-- [ ] **6-c** Portfolio optimizer: Markowitz mean-variance with Ledoit-Wolf shrinkage
-  using `cvxpy` + `numpy`
-- [ ] **6-d** Walk-forward evaluation harness (no look-ahead)
-- [ ] **6-e** Add `cvxpy` if not already present; add `pandas` for experiment analysis
-- [ ] **6-f** Write 1–2 example experiments with full provenance
+- [x] **6-a** Add `experiments` OLTP table (migration 0003): `id`, `name`, `code_sha`,
+  `params JSONB`, `data_window`, `metrics JSONB`, `stdout`, `notes`, `status`,
+  `started_at`, `completed_at`, `created_at`
+- [x] **6-b** CLI: `meridian experiment run <name>` — discovers `experiments/<name>/run.py`,
+  captures output, writes row to `experiments`; also `meridian experiment list`
+  and `meridian experiment portfolio --category <c>`
+- [x] **6-c** Portfolio optimizer: Markowitz mean-variance with Ledoit-Wolf OAS
+  shrinkage using `cvxpy` (CLARABEL solver) + `numpy`
+- [x] **6-d** Walk-forward evaluation harness (no look-ahead): expanding or rolling
+  window, per-fold Sharpe/max-drawdown, aggregate summary
+- [x] **6-e** Add `pandas>=2.2.0` to `pyproject.toml`; `cvxpy` already present
+- [x] **6-f** Example experiments: `experiments/kalshi_fed_pmf/run.py` and
+  `experiments/arb_snapshot/run.py`, each with `manifest.yaml`
 
 ---
 
-## Phase 7 — Quant Terminal (BLOCKED on Phase 6)
+## Phase 7 — Quant Terminal (READY)
 
 - [ ] **7-a** FastAPI app skeleton: `src/meridian/api/`; WebSocket + REST routes
 - [ ] **7-b** Next.js + TypeScript frontend scaffold

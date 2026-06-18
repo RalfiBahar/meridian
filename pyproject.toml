@@ -21,6 +21,7 @@ dependencies = [
     "scipy>=1.13.0",
     "scikit-learn>=1.5.0",
     "cvxpy>=1.5.0",
+    "pandas>=2.2.0",
 ]
 
 [dependency-groups]
@@ -75,7 +76,7 @@ namespace_packages = true
 explicit_package_bases = true
 
 [[tool.mypy.overrides]]
-module = ["asyncpg.*", "sklearn.*", "cvxpy.*", "scipy.*"]
+module = ["asyncpg.*", "sklearn.*", "cvxpy.*", "scipy.*", "pandas.*", "yaml.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

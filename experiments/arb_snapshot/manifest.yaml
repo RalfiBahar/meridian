@@ -1,0 +1,14 @@
+name: arb_snapshot
+description: |
+  Snapshot no-arbitrage violations across all Kalshi partition groups and
+  cross-venue pairs.  Useful as a daily cron experiment to track arb
+  persistence over time.
+
+params:
+  threshold_bps: 5     # only report violations above this
+  write_signals: false # set true to persist to signals table
+
+outputs:
+  - n_partition_violations
+  - n_cross_venue_violations
+  - max_violation_bps

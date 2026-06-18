@@ -6,6 +6,7 @@ import click
 
 from meridian.cli.analytics import analytics
 from meridian.cli.arb import arb
+from meridian.cli.experiment import experiment
 from meridian.cli.health import health
 from meridian.cli.ingest import ingest
 from meridian.cli.kalshi import kalshi
@@ -21,6 +22,7 @@ def cli() -> None:
 
 cli.add_command(analytics)
 cli.add_command(arb)
+cli.add_command(experiment)
 cli.add_command(health)
 cli.add_command(ingest)
 cli.add_command(migrate)

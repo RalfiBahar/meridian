@@ -1,0 +1,13 @@
+name: kalshi_fed_pmf
+description: |
+  Compute and print the implied Fed-funds rate PMF from Kalshi KXFED contracts
+  for the nearest upcoming FOMC date.  Optionally compare against CME FedWatch.
+
+params:
+  fetch_cme: false
+  fomc_date: null      # ISO date YYYY-MM-DD; null = auto-detect from DB
+
+outputs:
+  - expected_rate      # probability-weighted expected rate (%)
+  - entropy_bits       # Shannon entropy of the PMF
+  - n_strikes          # number of contracts in the strip

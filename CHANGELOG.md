@@ -8,7 +8,71 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 6: Research framework + portfolio optimizer
+- Phase 7: Quant Terminal frontend + production polish
+
+---
+
+## Phase 6 — 2026-06-18
+
+### Added
+- `migrations/0003_experiments.sql` — `experiments` OLTP table: `id`, `name`,
+  `code_sha` (SHA-256 of `run.py`), `params JSONB`, `data_window JSONB`,
+  `metrics JSONB`, `stdout TEXT`, `notes TEXT`, `status` (pending/running/
+  completed/failed), `started_at`, `completed_at`, `created_at`; indexed on
+  `(name, created_at DESC)` and `status`
+- `src/meridian/research/__init__.py` — package marker
+- `src/meridian/research/experiment.py`:
+  - `_experiments_root()` — resolves `experiments/` dir by walking up to repo root
+  - `discover_experiments()` — lists all `experiments/<name>/run.py` scripts
+  - `_load_manifest(exp_dir)` — reads `manifest.yaml` params defaults (PyYAML
+    optional; fails silently if not installed)
+  - `_extract_metrics(stdout)` — parses last-line JSON from experiment output
+  - `run_experiment(pool, name, *, params, data_window, notes, run_timeout)` —
+    SHA-256s run.py for provenance, inserts `pending` row, spawns subprocess
+    with `EXPERIMENT_PARAMS` env var, captures stdout, updates to
+    `completed`/`failed`, extracts metrics JSON from last line
+  - `list_experiments(pool, *, name, limit)` — queries recent runs from DB
+  - `ExperimentResult` dataclass with `.success` property and `.summary()`
+- `src/meridian/research/portfolio.py`:
+  - `ledoit_wolf_shrinkage(returns)` — OAS estimator via `sklearn.covariance.OAS`
+  - `sample_covariance(returns)` — plain sample covariance
+  - `optimize(returns, *, target_return, risk_free_rate, shrink, long_only, max_weight)`
+    — CLARABEL-solver QP via cvxpy; fallback to equal-weight on infeasible status
+  - `efficient_frontier(returns, *, n_points, shrink, long_only)` — sweeps 20
+    portfolios from min-var to max-return
+  - `PortfolioResult` dataclass with `.success`, `.sharpe`, `.summary()`
+- `src/meridian/research/walkforward.py`:
+  - `make_folds(returns, *, train_size, test_size, step, expanding)` — generates
+    expanding or rolling-window walk-forward folds with no look-ahead
+  - `evaluate(folds, *, optimize_fn, **optimizer_kwargs)` — runs optimizer on
+    each fold's train set, evaluates on test; per-fold Sharpe, ann. return, vol,
+    max drawdown; graceful fallback to equal-weight on optimizer error
+  - `WalkForwardSummary.summary()` — tabular aggregate + per-fold rows
+  - `Fold`, `FoldResult`, `WalkForwardSummary` dataclasses
+- `src/meridian/cli/experiment.py` — `experiment` command group:
+  - `meridian experiment run <name> [--params JSON] [--window-start DATE]
+    [--window-end DATE] [--notes TEXT] [--timeout SECONDS]`
+  - `meridian experiment list [--name NAME] [--limit N]`
+  - `meridian experiment portfolio --category C [--lookback DAYS]
+    [--target-return R] [--no-shrink] [--frontier] [--walk-forward]`
+- `experiments/kalshi_fed_pmf/` — first example experiment: prints KXFED implied
+  PMF, outputs `{expected_rate, entropy_bits, n_strikes, fomc_date}` as JSON
+  metrics; `manifest.yaml` documents params and outputs
+- `experiments/arb_snapshot/` — second example experiment: scans all arb
+  violations at run time, outputs `{n_partition, n_cross_venue, max_bps}` as JSON
+- `pyproject.toml`: added `pandas>=2.2.0`; added `pandas.*` and `yaml.*` to
+  mypy `ignore_missing_imports`
+- `tests/test_research_portfolio.py` — 16 unit tests: covariance shape/PSD/
+  shrinkage, optimizer weight-sum/long-only/variance-minimized/target-return/
+  error-on-T<N, max-weight constraint, no-shrink, Sharpe formula, frontier
+  monotonicity
+- `tests/test_research_walkforward.py` — 14 unit tests: fold count/no-overlap/
+  expanding/rolling/raises, fold-result cumulative return/max-drawdown/Sharpe-
+  none, evaluate success/empty/error-fallback, summary format
+
+### Changed
+- `cli/__main__.py`: registered `experiment` command group
+- Phase 6 is now complete — 181 unit tests passing
 
 ---
 

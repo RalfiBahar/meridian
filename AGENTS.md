@@ -75,13 +75,22 @@ src/meridian/
 │   ├── arb.py            # LP no-arb partition checker + cross-venue divergence monitor
 │   ├── microstructure.py # Effective spread, OBI, Kyle's lambda, Amihud, execution simulator
 │   └── fedwatch.py       # Implied Fed PMF, CME FedWatch fetch, event-response analyzer
+├── research/
+│   ├── __init__.py
+│   ├── experiment.py   # Experiment runner + DB persistence (experiments table)
+│   ├── portfolio.py    # Markowitz MV optimizer: Ledoit-Wolf shrinkage, cvxpy CLARABEL
+│   └── walkforward.py  # Walk-forward evaluation harness (no look-ahead)
 └── cli/
     ├── __main__.py     # click entry point
     ├── health.py       # `health` command
     ├── migrate.py      # `migrate` command
     ├── analytics.py    # `analytics {signals,calibrate,microstructure,fedwatch,event-response}`
     ├── arb.py          # `arb {monitor,group-fed}` commands
+    ├── experiment.py   # `experiment {run,list,portfolio}` commands
     └── kalshi.py       # `kalshi {status,markets,orderbook}` commands
+experiments/
+    kalshi_fed_pmf/     # Experiment: implied Fed PMF from KXFED contracts
+    arb_snapshot/       # Experiment: daily arb violation snapshot
 migrations/
     0001_initial_schema.sql
     0002_book_delta_and_fractional_sizes.sql
@@ -192,6 +201,7 @@ make check        # lint + typecheck + unit tests
 | 3 | Cross-market no-arb consistency engine | Done |
 | 4 | Microstructure analytics + execution simulator | Done |
 | 5 | Implied Fed-rate distribution + event-response model | Done |
-| 6–7 | Research framework, frontend | Planned |
+| 6 | Research framework + portfolio optimizer | Done |
+| 7 | Quant Terminal frontend + production polish | Planned |
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.

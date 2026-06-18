@@ -18,7 +18,7 @@ See `docs/roadmap.md` for the full narrative with resume bullets and concepts ta
 | 3 | Cross-market no-arb consistency engine | ✓ Done |
 | 4 | Microstructure analytics + execution simulator | ✓ Done |
 | 5 | Implied Fed-rate distribution + event-response model | ✓ Done |
-| 6 | Research framework + portfolio optimizer | Planned |
+| 6 | Research framework + portfolio optimizer | ✓ Done |
 | 7 | Quant Terminal frontend + production polish | Planned |
 
 ---
@@ -146,13 +146,27 @@ side-by-side Kalshi vs CME FedWatch PMFs for the July FOMC meeting.
 
 ---
 
-## Phase 6 — Research framework + portfolio optimizer
+## Phase 6 — Research framework + portfolio optimizer ✓
 
-- Reproducible experiment tracker: `experiments` table with code SHA, params,
-  metrics, notes
-- Per-experiment notebook pattern with `manifest.yaml`
-- CLI: `meridian experiment run <name>`
-- Portfolio optimizer: cvxpy Markowitz + Ledoit-Wolf shrinkage, walk-forward evaluation
+**Built**: `migrations/0003_experiments.sql` — `experiments` table (id, name,
+code_sha, params, data_window, metrics, stdout, status, started_at, completed_at).
+`research/experiment.py` discovers `experiments/<name>/run.py`, SHA-256s it for
+provenance, executes in a subprocess with `EXPERIMENT_PARAMS` env var, captures
+stdout, extracts last-line JSON as `metrics`, persists to DB.
+`research/portfolio.py` — Markowitz min-var QP with Ledoit-Wolf OAS shrinkage
+(`sklearn.covariance.OAS`) solved by CLARABEL via `cvxpy`; `efficient_frontier()`
+sweeps N portfolios; all weights normalized post-solve.
+`research/walkforward.py` — expanding/rolling fold generator; `evaluate()` runs
+any optimizer function on each fold's train data and scores on OOS period (Sharpe,
+max drawdown, ann. return/vol).
+Two example experiments: `kalshi_fed_pmf` (prints KXFED PMF + metrics JSON) and
+`arb_snapshot` (daily arb violation snapshot + metrics JSON).
+30 unit tests.
+
+**Deliverable**: `meridian experiment run kalshi_fed_pmf` prints the KXFED PMF
+and writes a provenance row to the `experiments` table.
+`meridian experiment portfolio --category fed --walk-forward` prints walk-forward
+Sharpe/drawdown across expanding windows of Fed-rate market probabilities.
 
 ---
 
