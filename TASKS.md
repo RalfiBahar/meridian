@@ -123,22 +123,23 @@ These complete the Phase 1c deliverable.
 
 ---
 
-## Phase 5 — Fed-rate distribution (READY)
+## Phase 5 — Fed-rate distribution (DONE)
 
-- [ ] **5-a** Identify and group all active Kalshi FED contracts per FOMC date
-  into `market_groups`
-- [ ] **5-b** Construct implied PMF over rate outcomes from sorted cumulative
+- [x] **5-a** Identify and group all active Kalshi FED contracts per FOMC date
+  into `market_groups` (via `meridian arb group-fed` from Phase 3)
+- [x] **5-b** Construct implied PMF over rate outcomes from sorted cumulative
   contract strip (probability of rate ≤ k from strike ordering)
-- [ ] **5-c** Fetch CME FedWatch probabilities (public CSV or scrape) for
-  cross-validation
-- [ ] **5-d** Event-response analyzer: for each `news_events` row (FOMC, CPI),
+- [x] **5-c** Fetch CME FedWatch probabilities (public futures quotes endpoint)
+  for cross-validation
+- [x] **5-d** Event-response analyzer: for each `news_events` row (FOMC, CPI),
   measure delta in `p_mid` over pre/post windows; compute per-category
   "market efficiency latency" signal
-- [ ] **5-e** CLI: `meridian analytics fedwatch [--date 2026-07-30]`
+- [x] **5-e** CLI: `meridian analytics fedwatch [--date 2026-07-30]` and
+  `meridian analytics event-response <event-uuid>`
 
 ---
 
-## Phase 6 — Research framework (BLOCKED on Phase 5)
+## Phase 6 — Research framework (READY)
 
 - [ ] **6-a** Add `experiments` OLTP table (migration): `id`, `name`, `code_sha`,
   `params JSONB`, `data_window`, `metrics JSONB`, `notes`, `created_at`

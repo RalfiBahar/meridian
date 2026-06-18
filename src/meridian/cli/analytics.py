@@ -1,9 +1,9 @@
-"""CLI subcommands: `meridian analytics {calibrate,signals,microstructure}`."""
+"""CLI subcommands: `meridian analytics {calibrate,signals,microstructure,fedwatch}`."""
 
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -240,3 +240,159 @@ async def _run_microstructure(
             click.echo(f"  Levels:        {est.n_levels_consumed}")
             if est.partially_filled:
                 click.echo("  (partially filled — insufficient book depth)")
+
+
+@analytics.command(name="fedwatch")
+@click.option(
+    "--date",
+    "fomc_date",
+    default=None,
+    metavar="YYYY-MM-DD",
+    help="FOMC meeting date to analyze. Defaults to the next upcoming date.",
+)
+@click.option(
+    "--cme",
+    is_flag=True,
+    default=False,
+    help="Also attempt to fetch CME FedWatch probabilities and compare.",
+)
+def fedwatch_cmd(fomc_date: str | None, cme: bool) -> None:
+    """Show implied Fed-funds rate PMF from Kalshi KXFED contracts.
+
+    Reads the latest p_mid signals for every contract in the KXFED partition
+    group whose settlement date matches FOMC-DATE, sorts by strike, and
+    displays the normalized probability mass function.
+
+    Optionally compares against CME FedWatch-derived probabilities (--cme).
+    CME fetch is best-effort and silently omitted if unavailable.
+    """
+    parsed_date: date | None = None
+    if fomc_date is not None:
+        try:
+            parsed_date = date.fromisoformat(fomc_date)
+        except ValueError:
+            click.echo(f"Invalid date format: {fomc_date!r} (expected YYYY-MM-DD)", err=True)
+            raise SystemExit(1) from None
+    asyncio.run(_run_fedwatch(fomc_date=parsed_date, fetch_cme=cme))
+
+
+async def _run_fedwatch(*, fomc_date: date | None, fetch_cme: bool) -> None:
+    from meridian.analytics.fedwatch import build_kalshi_pmf, fetch_cme_fedwatch
+
+    settings = get_settings()
+    configure_logging(settings)
+
+    # If no date given, use the nearest upcoming KXFED close date.
+    if fomc_date is None:
+        async with pool_context(settings) as pool:
+            fomc_date = await _next_kxfed_date(pool)
+        if fomc_date is None:
+            click.echo("No open KXFED markets found in the database.", err=True)
+            return
+
+    async with pool_context(settings) as pool:
+        pmf = await build_kalshi_pmf(pool, fomc_date)
+
+    if pmf is None:
+        click.echo(
+            f"No KXFED contracts with p_mid signals found for {fomc_date}.", err=True
+        )
+        return
+
+    click.echo(pmf.summary())
+
+    if fetch_cme:
+        cme_pmf = await fetch_cme_fedwatch(fomc_date)
+        if cme_pmf is None:
+            click.echo(
+                "\nCME FedWatch: unavailable (network error or unrecognized format)."
+            )
+        else:
+            click.echo("\n─── CME FedWatch comparison ───")
+            click.echo(cme_pmf.summary())
+
+
+async def _next_kxfed_date(pool: object) -> date | None:
+    """Return the closes_at date of the nearest upcoming KXFED market."""
+    async with pool.acquire() as conn:  # type: ignore[attr-defined]
+        row = await conn.fetchrow(
+            """
+            SELECT DATE(closes_at) AS fomc_date
+            FROM markets m
+            JOIN venues v ON v.id = m.venue_id
+            WHERE v.code = 'kalshi'
+              AND m.external_id LIKE 'KXFED-%%'
+              AND m.resolution_status = 'open'
+              AND m.closes_at > now()
+            ORDER BY m.closes_at ASC
+            LIMIT 1
+            """
+        )
+    if row is None:
+        return None
+    result: date = row["fomc_date"]
+    return result
+
+
+@analytics.command(name="event-response")
+@click.argument("event_id")
+@click.option(
+    "--pre",
+    default=60,
+    show_default=True,
+    type=int,
+    metavar="MINUTES",
+    help="Pre-event window in minutes.",
+)
+@click.option(
+    "--post",
+    default=60,
+    show_default=True,
+    type=int,
+    metavar="MINUTES",
+    help="Post-event window in minutes.",
+)
+def event_response_cmd(event_id: str, pre: int, post: int) -> None:
+    """Measure market reaction to a news event.
+
+    EVENT_ID is the UUID of a row in the `news_events` table.
+
+    Computes mean ΔP_mid and variance ratio (post/pre) across all open
+    markets in the same category as the event.  Variance ratio > 1 indicates
+    that the event introduced new information.
+    """
+    try:
+        eid = UUID(event_id)
+    except ValueError:
+        click.echo(f"Invalid UUID: {event_id!r}", err=True)
+        raise SystemExit(1) from None
+    asyncio.run(
+        _run_event_response(
+            event_id=eid,
+            pre_window=timedelta(minutes=pre),
+            post_window=timedelta(minutes=post),
+        )
+    )
+
+
+async def _run_event_response(
+    *,
+    event_id: UUID,
+    pre_window: timedelta,
+    post_window: timedelta,
+) -> None:
+    from meridian.analytics.fedwatch import compute_event_response
+
+    settings = get_settings()
+    configure_logging(settings)
+
+    async with pool_context(settings) as pool:
+        result = await compute_event_response(
+            pool, event_id, pre_window=pre_window, post_window=post_window
+        )
+
+    if result is None:
+        click.echo(f"News event not found: {event_id}", err=True)
+        return
+
+    click.echo(result.summary())

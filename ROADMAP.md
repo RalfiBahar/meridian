@@ -17,7 +17,7 @@ See `docs/roadmap.md` for the full narrative with resume bullets and concepts ta
 | 2 | Implied probability + calibration engine | ✓ Done |
 | 3 | Cross-market no-arb consistency engine | ✓ Done |
 | 4 | Microstructure analytics + execution simulator | ✓ Done |
-| 5 | Implied Fed-rate distribution + event-response model | Planned |
+| 5 | Implied Fed-rate distribution + event-response model | ✓ Done |
 | 6 | Research framework + portfolio optimizer | Planned |
 | 7 | Quant Terminal frontend + production polish | Planned |
 
@@ -126,12 +126,23 @@ estimates fill for a 100-contract buy.
 
 ---
 
-## Phase 5 — Implied Fed-rate distribution + event-response model
+## Phase 5 — Implied Fed-rate distribution + event-response model ✓
 
-- Implied PMF over future Fed funds rate from Kalshi FED contract strips
-- Cross-validation against CME FedWatch
-- Event-response analyzer: market reaction speed/magnitude on FOMC/CPI/BLS
-  via Bayesian updating → "market efficiency latency" per category
+**Built**: `analytics/fedwatch.py` — `build_kalshi_pmf()` reads the latest
+`p_mid` signals for every KXFED contract in a partition group, sorts by strike
+rate parsed from the ticker, normalizes into a proper PMF, and exposes
+`expected_rate()` and `entropy()` (Shannon bits).  `fetch_cme_fedwatch()`
+makes a best-effort HTTP call to the CME 30-day Fed Funds futures endpoint and
+derives a 2-strike discrete PMF from the implied rate; fails silently on any
+network/format error.  `compute_event_response()` joins `news_events` to
+per-market `p_mid` signals over configurable pre/post windows, returning mean
+ΔP_mid and a variance ratio (post/pre > 1 = information arrival).  CLI:
+`meridian analytics fedwatch [--date YYYY-MM-DD] [--cme]` and
+`meridian analytics event-response <uuid> [--pre MIN] [--post MIN]`.
+25 unit tests.
+
+**Deliverable**: `meridian analytics fedwatch --date 2026-07-30 --cme` prints
+side-by-side Kalshi vs CME FedWatch PMFs for the July FOMC meeting.
 
 ---
 

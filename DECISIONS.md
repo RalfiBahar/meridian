@@ -248,3 +248,19 @@ behavioral difference, just to avoid a one-line dependency call. If
 Meridian later needs a real HTTP surface (health checks, readiness probes,
 the Phase 7 API gateway), that's the point to introduce a proper ASGI app;
 metrics alone don't justify it yet.
+
+---
+
+## ADR-018: CME FedWatch fetch is best-effort with silent failure
+
+**Decision**: `fetch_cme_fedwatch()` (Phase 5) uses `httpx` to attempt a GET
+against CME Group's public futures quotes endpoint. Any network failure,
+non-200 response, or parse error returns `None` instead of raising.
+
+**Why**: CME does not publish a stable, versioned public API contract for
+FedWatch probabilities; the endpoint format can change without notice. The
+Kalshi KXFED PMF is Meridian's primary data source — CME is only a
+cross-validation signal. Making the CLI fail or block on an optional
+comparison would degrade the user experience. The `--cme` flag clearly
+communicates that this is best-effort; users who need CME data reliably can
+subscribe to CME DataMine and replace the fetch with a file-based loader.

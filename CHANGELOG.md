@@ -8,7 +8,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ## [Unreleased]
 
 ### Planned
-- Phase 5: Implied Fed-rate distribution + event-response model
+- Phase 6: Research framework + portfolio optimizer
+
+---
+
+## Phase 5 — 2026-06-18
+
+### Added
+- `src/meridian/analytics/fedwatch.py` — implied Fed-rate PMF + CME comparison + event response:
+  - `_parse_kxfed_strike(external_id)` — pure: extracts rate from
+    `KXFED-26JUN-T3.75` → `Decimal("3.75")`; returns `None` on malformed tickers
+  - `build_kalshi_pmf(pool, fomc_date)` — reads latest `p_mid` signals for every
+    KXFED contract whose `closes_at` falls on `fomc_date`; normalizes to a
+    probability distribution; returns `FedPMF` or `None` if no data
+  - `fetch_cme_fedwatch(fomc_date)` — best-effort HTTP GET to CME Group's public
+    30-day Fed Funds futures quotes endpoint; derives a 2-strike PMF from the
+    implied rate and 25-bps rounding; returns `None` on any failure (ADR-018)
+  - `compute_event_response(pool, event_id, *, pre_window, post_window)` — joins
+    a `news_events` row to `p_mid` signals for all markets in the same category;
+    computes per-market ΔP_mid and variance ratio (post/pre) as an information-
+    arrival proxy; returns `EventResponse` or `None` if event not found
+  - `FedPMF` dataclass: `expected_rate()`, `entropy()` (Shannon bits), `summary()`
+  - `EventResponse` dataclass: `summary()` with per-market table
+- `src/meridian/cli/analytics.py`: two new commands in `analytics` group:
+  - `meridian analytics fedwatch [--date YYYY-MM-DD] [--cme]` — prints implied
+    PMF from Kalshi; `--cme` also attempts CME FedWatch comparison
+  - `meridian analytics event-response <EVENT_UUID> [--pre MINUTES] [--post MINUTES]`
+    — prints event-response summary for a `news_events` row
+- `tests/test_analytics_fedwatch.py` — 25 unit tests: strike parser (standard,
+  whole number, missing prefix, too few parts, non-numeric), mean/variance helpers,
+  FedPMF expected rate/entropy/summary, `build_kalshi_pmf` (empty→None, single
+  contract, normalization, bad ticker skip), `_parse_cme_response` (no quotes,
+  wrong month, valid, missing price), `compute_event_response` (event not found,
+  no markets, basic delta computation), `EventResponse.summary` format
+
+### Changed
+- Phase 5 is now complete — 151 unit tests passing
 
 ---
 
