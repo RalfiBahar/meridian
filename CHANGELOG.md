@@ -9,6 +9,11 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 *All phases and all four stretch goals complete.*
 
+### Fixed
+- `ruff format` drift in 22 source and test files (trailing commas, blank-line
+  normalization, string quote style); CI `lint-and-typecheck` job now passes
+  `ruff format --check` cleanly
+
 ### Added
 - `tests/test_ingest_reconnect.py` — 12 unit tests for the shared
   `run_with_reconnect` reconnect loop (`ingest/reconnect.py`), covering
