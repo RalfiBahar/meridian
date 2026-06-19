@@ -9,6 +9,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 *All phases and all four stretch goals complete.*
 
+### Added
+- `tests/test_ingest_reconnect.py` — 12 unit tests for the shared
+  `run_with_reconnect` reconnect loop (`ingest/reconnect.py`), covering
+  all previously-uncovered branches: `_drain_stream` ConnectionClosedOK
+  suppression and exception propagation; `_run_connection` without
+  stop_event, stop_event firing mid-drain, drain exception re-raise, and
+  CancelledError propagation; `run_with_reconnect` CancelledError, pre-set
+  stop_event (skips connect), ConnectionClosedOK + stop_event already set,
+  ConnectionClosedOK triggering reconnect + `on_reconnect` callback, and
+  CancelledError during `asyncio.wait`. `reconnect.py` reaches 100% coverage.
+
 ---
 
 ## Phase 10 — News → Price NLP Tagger — 2026-06-19
