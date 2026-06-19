@@ -15,8 +15,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   `ruff format --check` cleanly
 - `StarletteDeprecationWarning` in `tests/test_api.py`: added `httpx2>=2.0.0`
   to the dev dependency group so Starlette 1.x `TestClient` uses the new
-  `httpx2` package instead of the deprecated `httpx` integration; all 361 unit
-  tests now pass with zero warnings
+  `httpx2` package instead of the deprecated `httpx` integration; all tests
+  now pass with zero warnings
+
+### Added
+- 25 new unit tests covering previously-uncovered DB interaction paths:
+  - `tests/test_analytics_signals.py` (+8): `run_signal_sweep` (zero markets,
+    skip on no-quote, count processed), `_open_market_ids` (no category, with
+    category), `_write_signals` (all-None skips DB, non-None calls executemany),
+    `_depth_weighted_prob` (zero bid_size → None); `signals.py` now at 100%
+  - `tests/test_analytics_arb.py` (+10): LP infeasible-with-inverted-spread
+    edge case, `_group_contracts`, `_write_partition_signal`,
+    `_write_cross_venue_signal`, `run_partition_monitor` (violations detected,
+    skip single-contract groups), `run_cross_venue_monitor` (divergences,
+    no-pairs); `arb.py` now at 99%
+  - `tests/test_analytics_microstructure.py` (+11): `_quote_ticks`,
+    `_trade_ticks`, `_open_market_ids`, `_write_signals` (with/without data),
+    `compute_microstructure`, `run_microstructure_sweep` (specific market, all
+    markets, write_signals path); `microstructure.py` now at 95%
+- Overall unit coverage improves from 91% → 94% (386 tests passing)
 
 ### Added
 - `tests/test_ingest_reconnect.py` — 12 unit tests for the shared

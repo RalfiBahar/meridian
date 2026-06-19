@@ -17,7 +17,10 @@ from meridian.analytics.signals import (
     _latest_quote,
     _microprice,
     _midprice,
+    _open_market_ids,
+    _write_signals,
     compute_market_signals,
+    run_signal_sweep,
 )
 
 # ---------------------------------------------------------------------------
@@ -194,3 +197,193 @@ async def test_compute_market_signals_none_if_no_quote() -> None:
     pool = _MockPool(_MockConn(quote_row=None))
     result = await compute_market_signals(pool, _MARKET_ID)  # type: ignore[arg-type]
     assert result is None
+
+
+async def test_depth_weighted_prob_zero_size_returns_none() -> None:
+    """Zero total size on bid side → None (line 173)."""
+    book_rows = [
+        {"side": "bid", "price": "0.50", "size": "0"},
+        {"side": "ask", "price": "0.52", "size": "100"},
+    ]
+    pool = _MockPool(_MockConn(book_rows=book_rows))
+    result = await _depth_weighted_prob(pool, _MARKET_ID)  # type: ignore[arg-type]
+    assert result is None
+
+
+async def test_open_market_ids_no_category() -> None:
+    """_open_market_ids fetches all open markets when category is None."""
+
+    class _IdsConn:
+        async def fetch(self, query: str, *args: object) -> list[dict[str, Any]]:
+            return [{"id": str(_MARKET_ID)}]
+
+    class _IdsPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _IdsConn()
+
+    result = await _open_market_ids(_IdsPool(), category=None)  # type: ignore[arg-type]
+    assert result == [_MARKET_ID]
+
+
+async def test_open_market_ids_with_category() -> None:
+    """_open_market_ids passes the category param to the query."""
+    received_args: list[Any] = []
+
+    class _CatConn:
+        async def fetch(self, query: str, *args: object) -> list[dict[str, Any]]:
+            received_args.extend(args)
+            return []
+
+    class _CatPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _CatConn()
+
+    await _open_market_ids(_CatPool(), category="fed")  # type: ignore[arg-type]
+    assert received_args == ["fed"]
+
+
+async def test_write_signals_calls_executemany() -> None:
+    """_write_signals inserts one row per non-None signal value."""
+
+    signals_obj = MarketSignals(
+        market_id=_MARKET_ID,
+        event_ts=_NOW,
+        p_bid=None,
+        p_ask=None,
+        p_mid=None,
+        microprice=None,
+        depth_weighted_prob=None,
+    )
+    # All None → no DB call.
+    class _TrackConn:
+        def __init__(self) -> None:
+            self.calls: list[Any] = []
+
+        async def executemany(self, query: str, records: object) -> None:
+            self.calls.append(list(records))  # type: ignore[call-overload]
+
+    class _TrackPool:
+        def __init__(self) -> None:
+            self.conn = _TrackConn()
+
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield self.conn
+
+    pool = _TrackPool()
+    await _write_signals(pool, signals_obj)  # type: ignore[arg-type]
+    assert pool.conn.calls == []  # early return when all None
+
+
+async def test_write_signals_inserts_present_values() -> None:
+    """_write_signals sends executemany with one record per non-None signal."""
+    signals_obj = MarketSignals(
+        market_id=_MARKET_ID,
+        event_ts=_NOW,
+        p_bid=Decimal("0.44"),
+        p_ask=Decimal("0.46"),
+        p_mid=Decimal("0.45"),
+        microprice=None,
+        depth_weighted_prob=None,
+    )
+
+    class _TrackConn:
+        def __init__(self) -> None:
+            self.calls: list[Any] = []
+
+        async def executemany(self, query: str, records: object) -> None:
+            self.calls.append(list(records))  # type: ignore[call-overload]
+
+    class _TrackPool:
+        def __init__(self) -> None:
+            self.conn = _TrackConn()
+
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield self.conn
+
+    pool = _TrackPool()
+    await _write_signals(pool, signals_obj)  # type: ignore[arg-type]
+    assert len(pool.conn.calls) == 1
+    assert len(pool.conn.calls[0]) == 3  # p_bid, p_ask, p_mid
+
+
+async def test_run_signal_sweep_returns_zero_when_no_markets() -> None:
+    """run_signal_sweep returns 0 when there are no open markets."""
+
+    class _EmptyConn:
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            return []
+
+    class _EmptyPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _EmptyConn()
+
+    count = await run_signal_sweep(_EmptyPool())  # type: ignore[arg-type]
+    assert count == 0
+
+
+async def test_run_signal_sweep_skips_markets_with_no_quote() -> None:
+    """run_signal_sweep skips markets where compute_market_signals returns None."""
+
+    call_n = 0
+
+    class _SkipConn:
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            nonlocal call_n
+            call_n += 1
+            if call_n == 1:
+                # _open_market_ids: return one market
+                return [{"id": str(_MARKET_ID)}]
+            # _latest_quote fetch (via _depth_weighted_prob path) → empty
+            return []
+
+        async def fetchrow(self, query: str, *args: object) -> dict[str, Any] | None:
+            return None  # no quote → compute_market_signals returns None
+
+    class _SkipPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _SkipConn()
+
+    count = await run_signal_sweep(_SkipPool())  # type: ignore[arg-type]
+    assert count == 0
+
+
+async def test_run_signal_sweep_counts_processed_market() -> None:
+    """run_signal_sweep counts markets where signals were computed and written."""
+
+    quote: dict[str, Any] = {
+        "event_ts": _NOW,
+        "bid": Decimal("0.48"),
+        "ask": Decimal("0.52"),
+        "bid_size": Decimal("100"),
+        "ask_size": Decimal("100"),
+    }
+
+    call_n = 0
+
+    class _Conn:
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            nonlocal call_n
+            call_n += 1
+            if call_n == 1:
+                return [{"id": str(_MARKET_ID)}]  # open market ids
+            return []  # book snapshot → depth_weighted_prob returns None
+
+        async def fetchrow(self, query: str, *args: object) -> dict[str, Any] | None:
+            return quote  # latest quote
+
+        async def executemany(self, query: str, records: object) -> None:
+            pass
+
+    class _Pool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _Conn()
+
+    count = await run_signal_sweep(_Pool())  # type: ignore[arg-type]
+    assert count == 1

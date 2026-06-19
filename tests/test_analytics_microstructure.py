@@ -21,7 +21,13 @@ from meridian.analytics.microstructure import (
     _amihud_ratio,
     _effective_spread,
     _kyle_lambda,
+    _open_market_ids,
     _order_book_imbalance,
+    _quote_ticks,
+    _trade_ticks,
+    _write_signals,
+    compute_microstructure,
+    run_microstructure_sweep,
     simulate_execution,
 )
 
@@ -278,3 +284,236 @@ def test_metrics_dataclass() -> None:
     )
     assert m.n_quotes == 100
     assert m.effective_spread == Decimal("0.04")
+
+
+# ---------------------------------------------------------------------------
+# DB helper tests
+# ---------------------------------------------------------------------------
+
+
+class _FetchConn:
+    def __init__(self, rows: list[dict[str, Any]]) -> None:
+        self._rows = rows
+
+    async def fetch(self, query: str, *args: object) -> list[dict[str, Any]]:
+        return self._rows
+
+    async def executemany(self, query: str, records: object) -> None:
+        pass
+
+
+class _FetchPool:
+    def __init__(self, conn: _FetchConn) -> None:
+        self._conn = conn
+
+    @asynccontextmanager
+    async def acquire(self) -> Any:
+        yield self._conn
+
+
+async def test_quote_ticks_returns_rows() -> None:
+    row: dict[str, Any] = {
+        "event_ts": _NOW,
+        "bid": "0.48",
+        "ask": "0.52",
+        "bid_size": "100",
+        "ask_size": "80",
+        "aggressor": None,
+    }
+    pool = _FetchPool(_FetchConn([row]))
+    result = await _quote_ticks(pool, _MARKET_ID, _NOW)  # type: ignore[arg-type]
+    assert len(result) == 1
+    assert result[0]["bid"] == "0.48"
+
+
+async def test_trade_ticks_returns_rows() -> None:
+    row: dict[str, Any] = {
+        "event_ts": _NOW,
+        "trade_price": "0.50",
+        "trade_size": "200",
+        "aggressor": "buy",
+    }
+    pool = _FetchPool(_FetchConn([row]))
+    result = await _trade_ticks(pool, _MARKET_ID, _NOW)  # type: ignore[arg-type]
+    assert len(result) == 1
+    assert result[0]["trade_price"] == "0.50"
+
+
+async def test_open_market_ids_returns_uuids() -> None:
+    rows: list[dict[str, Any]] = [{"id": str(_MARKET_ID)}]
+    pool = _FetchPool(_FetchConn(rows))
+    result = await _open_market_ids(pool)  # type: ignore[arg-type]
+    assert result == [_MARKET_ID]
+
+
+async def test_write_signals_calls_executemany() -> None:
+    """_write_signals inserts records when metrics are non-None."""
+    calls: list[list[Any]] = []
+
+    class _TrackConn:
+        async def executemany(self, query: str, records: object) -> None:
+            calls.append(list(records))  # type: ignore[call-overload]
+
+    class _TrackPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _TrackConn()
+
+    m = MicrostructureMetrics(
+        market_id=_MARKET_ID,
+        window=timedelta(days=7),
+        effective_spread=Decimal("0.04"),
+        obi=Decimal("0.1"),
+        kyle_lambda=0.001,
+        amihud=0.00002,
+        n_quotes=10,
+        n_trades=5,
+    )
+    await _write_signals(_TrackPool(), m)  # type: ignore[arg-type]
+    assert len(calls) == 1
+    assert len(calls[0]) == 4  # effective_spread, obi, kyle_lambda, amihud
+
+
+async def test_write_signals_no_call_when_all_none() -> None:
+    """_write_signals skips DB when all metrics are None."""
+    calls: list[Any] = []
+
+    class _TrackConn:
+        async def executemany(self, query: str, records: object) -> None:
+            calls.append(records)
+
+    class _TrackPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _TrackConn()
+
+    m = MicrostructureMetrics(
+        market_id=_MARKET_ID,
+        window=timedelta(days=7),
+        effective_spread=None,
+        obi=None,
+        kyle_lambda=None,
+        amihud=None,
+        n_quotes=0,
+        n_trades=0,
+    )
+    await _write_signals(_TrackPool(), m)  # type: ignore[arg-type]
+    assert calls == []
+
+
+# ---------------------------------------------------------------------------
+# compute_microstructure via mock pool
+# ---------------------------------------------------------------------------
+
+
+async def test_compute_microstructure_returns_metrics() -> None:
+    """compute_microstructure produces a MicrostructureMetrics for a market."""
+    quote_row: dict[str, Any] = {
+        "event_ts": _NOW,
+        "bid": "0.48",
+        "ask": "0.52",
+        "bid_size": "100",
+        "ask_size": "80",
+        "aggressor": None,
+    }
+
+    call_n = 0
+
+    class _Conn:
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            nonlocal call_n
+            call_n += 1
+            if call_n == 1:
+                return [quote_row]  # quote ticks
+            return []  # trade ticks
+
+    class _Pool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _Conn()
+
+    result = await compute_microstructure(_Pool(), _MARKET_ID)  # type: ignore[arg-type]
+    assert isinstance(result, MicrostructureMetrics)
+    assert result.market_id == _MARKET_ID
+    assert result.n_quotes == 1
+    assert result.n_trades == 0
+
+
+# ---------------------------------------------------------------------------
+# run_microstructure_sweep via mock pool
+# ---------------------------------------------------------------------------
+
+
+async def test_run_microstructure_sweep_specific_market() -> None:
+    """run_microstructure_sweep with market_id skips _open_market_ids."""
+    call_n = 0
+
+    class _Conn:
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            nonlocal call_n
+            call_n += 1
+            if call_n == 1:
+                return []  # quote ticks
+            return []  # trade ticks
+
+        async def executemany(self, query: str, records: object) -> None:
+            pass
+
+    class _Pool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _Conn()
+
+    results = await run_microstructure_sweep(_Pool(), market_id=_MARKET_ID, write_signals=False)  # type: ignore[arg-type]
+    assert len(results) == 1
+    assert results[0].market_id == _MARKET_ID
+
+
+async def test_run_microstructure_sweep_all_markets() -> None:
+    """run_microstructure_sweep without market_id fetches open markets first."""
+    call_n = 0
+
+    class _Conn:
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            nonlocal call_n
+            call_n += 1
+            if call_n == 1:
+                return [{"id": str(_MARKET_ID)}]  # _open_market_ids
+            if call_n == 2:
+                return []  # quote ticks for the market
+            return []  # trade ticks
+
+    class _Pool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _Conn()
+
+    results = await run_microstructure_sweep(_Pool(), write_signals=False)  # type: ignore[arg-type]
+    assert len(results) == 1
+
+
+async def test_run_microstructure_sweep_write_signals() -> None:
+    """run_microstructure_sweep calls _write_signals when write_signals=True."""
+    executemany_calls: list[Any] = []
+    call_n = 0
+
+    class _Conn:
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            nonlocal call_n
+            call_n += 1
+            if call_n == 1:
+                return []  # quote ticks (no data → all None metrics)
+            return []  # trade ticks
+
+        async def executemany(self, query: str, records: object) -> None:
+            executemany_calls.append(list(records))  # type: ignore[call-overload]
+
+    class _Pool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _Conn()
+
+    # All metrics None → _write_signals returns early, no executemany call.
+    results = await run_microstructure_sweep(_Pool(), market_id=_MARKET_ID, write_signals=True)  # type: ignore[arg-type]
+    assert len(results) == 1
+    assert executemany_calls == []
