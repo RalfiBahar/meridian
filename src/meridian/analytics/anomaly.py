@@ -43,7 +43,7 @@ class AnomalyPoint:
     ts: datetime
     market_id: UUID
     features: dict[str, float]
-    score: float      # IsolationForest.decision_function; lower = more anomalous
+    score: float  # IsolationForest.decision_function; lower = more anomalous
     is_anomaly: bool  # True when score < 0 (i.e., IsolationForest predicts -1)
 
 
@@ -73,11 +73,7 @@ class AnomalyReport:
         if anomalies:
             lines.append("\n— Most anomalous observations (lowest score first) —")
             for pt in anomalies[:10]:
-                feat_parts = [
-                    f"{k}={v:.4f}"
-                    for k, v in pt.features.items()
-                    if not np.isnan(v)
-                ]
+                feat_parts = [f"{k}={v:.4f}" for k, v in pt.features.items() if not np.isnan(v)]
                 lines.append(
                     f"  [{pt.ts.strftime('%Y-%m-%d %H:%M')}]"
                     f"  score={pt.score:.3f}"
@@ -133,9 +129,7 @@ async def detect_anomalies(
 
     points: list[AnomalyPoint] = []
     for i, m in enumerate(meta):
-        raw_feats = {
-            name: float(matrix[i, j]) for j, name in enumerate(_SIGNAL_FEATURES)
-        }
+        raw_feats = {name: float(matrix[i, j]) for j, name in enumerate(_SIGNAL_FEATURES)}
         points.append(
             AnomalyPoint(
                 ts=m["ts"],
@@ -162,13 +156,8 @@ async def write_anomaly_signals(pool: asyncpg.Pool, report: AnomalyReport) -> in
     Returns the number of rows passed to executemany.
     """
     now = datetime.now(tz=UTC)
-    meta = json.dumps(
-        {"contamination": report.contamination, "window_days": report.window.days}
-    )
-    records = [
-        (p.ts, p.market_id, "anomaly_score", p.score, meta, now)
-        for p in report.points
-    ]
+    meta = json.dumps({"contamination": report.contamination, "window_days": report.window.days})
+    records = [(p.ts, p.market_id, "anomaly_score", p.score, meta, now) for p in report.points]
     if not records:
         return 0
     async with pool.acquire() as conn:
@@ -266,7 +255,5 @@ async def _fetch_signals(
 
 async def _open_market_ids(pool: asyncpg.Pool) -> list[UUID]:
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT id FROM markets WHERE resolution_status = 'open'"
-        )
+        rows = await conn.fetch("SELECT id FROM markets WHERE resolution_status = 'open'")
     return [UUID(str(r["id"])) for r in rows]

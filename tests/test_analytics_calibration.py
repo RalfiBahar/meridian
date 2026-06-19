@@ -304,18 +304,22 @@ async def test_run_calibration_no_markets_returns_none() -> None:
 
 
 async def test_run_calibration_no_probs_returns_none() -> None:
-    conn = _MockConn([
-        [{"id": str(_MARKET_ID), "settled_value": 1.0}],
-        [],  # p_mid history → empty
-    ])
+    conn = _MockConn(
+        [
+            [{"id": str(_MARKET_ID), "settled_value": 1.0}],
+            [],  # p_mid history → empty
+        ]
+    )
     assert await run_calibration(_MockPool(conn)) is None
 
 
 async def test_run_calibration_returns_result() -> None:
-    conn = _MockConn([
-        [{"id": str(_MARKET_ID), "settled_value": 1.0}],
-        [{"value": 0.7}, {"value": 0.8}],
-    ])
+    conn = _MockConn(
+        [
+            [{"id": str(_MARKET_ID), "settled_value": 1.0}],
+            [{"value": 0.7}, {"value": 0.8}],
+        ]
+    )
     result = await run_calibration(_MockPool(conn), n_bins=5)
     assert result is not None
     assert result.n_markets == 1
@@ -324,10 +328,12 @@ async def test_run_calibration_returns_result() -> None:
 
 
 async def test_run_calibration_single_observation_skips_isotonic() -> None:
-    conn = _MockConn([
-        [{"id": str(_MARKET_ID), "settled_value": 1.0}],
-        [{"value": 0.7}],
-    ])
+    conn = _MockConn(
+        [
+            [{"id": str(_MARKET_ID), "settled_value": 1.0}],
+            [{"value": 0.7}],
+        ]
+    )
     result = await run_calibration(_MockPool(conn))
     assert result is not None
     assert result.n_observations == 1

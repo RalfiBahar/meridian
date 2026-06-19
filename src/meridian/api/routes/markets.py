@@ -38,6 +38,7 @@ router = APIRouter()
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _f(v: Any) -> float | None:
     return float(v) if v is not None else None
 
@@ -362,9 +363,7 @@ async def ws_market_scanner(
             payload = {
                 "type": "snapshot",
                 "total": total,
-                "markets": [
-                    _row_to_summary(r).model_dump(mode="json") for r in rows
-                ],
+                "markets": [_row_to_summary(r).model_dump(mode="json") for r in rows],
             }
             await websocket.send_json(payload)
             with contextlib.suppress(TimeoutError):
@@ -392,9 +391,7 @@ async def ws_market_ticks(
     history = await _fetch_recent_ticks(pool, market_id, limit=50)
     for row in history:
         tick = _tick_row_from_db(row)
-        await websocket.send_json(
-            {"type": "tick", "data": tick.model_dump(mode="json")}
-        )
+        await websocket.send_json({"type": "tick", "data": tick.model_dump(mode="json")})
 
     channel = f"market:{market_id}"
     q = hub.subscribe(channel)
@@ -403,9 +400,7 @@ async def ws_market_ticks(
             try:
                 event = await asyncio.wait_for(q.get(), timeout=30.0)
                 tick = _tick_row_from_canonical(event)
-                await websocket.send_json(
-                    {"type": "tick", "data": tick.model_dump(mode="json")}
-                )
+                await websocket.send_json({"type": "tick", "data": tick.model_dump(mode="json")})
             except TimeoutError:
                 await websocket.send_json({"type": "ping"})
     except (WebSocketDisconnect, RuntimeError):

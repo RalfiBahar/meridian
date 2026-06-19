@@ -33,9 +33,7 @@ class EventHub:
         cursors: dict[str, str] = dict.fromkeys(_STREAMS, "$")
         while True:
             try:
-                results: list[Any] = await redis.xread(
-                    streams=cursors, block=_BLOCK_MS, count=50
-                )
+                results: list[Any] = await redis.xread(streams=cursors, block=_BLOCK_MS, count=50)
                 for stream_name, messages in results or []:
                     for msg_id, fields in messages:
                         raw: str | None = fields.get("event")

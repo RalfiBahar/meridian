@@ -60,9 +60,7 @@ class FedPMF:
 
     def entropy(self) -> float:
         """Shannon entropy in bits — measure of uncertainty."""
-        return -sum(
-            p * math.log2(p) for p in self.probabilities if p > 0
-        )
+        return -sum(p * math.log2(p) for p in self.probabilities if p > 0)
 
     def summary(self) -> str:
         lines = [

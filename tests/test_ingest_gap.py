@@ -72,7 +72,7 @@ async def test_gap_of_one_is_detected(mock_pool: Any) -> None:
 async def test_multiple_gaps_counted(mock_pool: Any) -> None:
     gd = GapDetector(mock_pool)
     await gd.observe(_msg(1, 1))
-    await gd.observe(_msg(1, 3))   # gap=1
+    await gd.observe(_msg(1, 3))  # gap=1
     await gd.observe(_msg(1, 10))  # gap=6
     assert gd.gaps_detected == 2
 
@@ -135,9 +135,7 @@ async def test_no_db_call_when_no_gap(mock_pool: Any, mock_conn: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_gap_signal_metadata_contains_sid_and_seqs(
-    mock_pool: Any, mock_conn: Any
-) -> None:
+async def test_gap_signal_metadata_contains_sid_and_seqs(mock_pool: Any, mock_conn: Any) -> None:
     import json
 
     gd = GapDetector(mock_pool)

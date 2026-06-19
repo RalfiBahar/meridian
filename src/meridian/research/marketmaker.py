@@ -55,7 +55,7 @@ class Fill:
     """A simulated fill against one of our posted quotes."""
 
     ts: datetime
-    side: str      # 'buy' or 'sell' — from the market maker's perspective
+    side: str  # 'buy' or 'sell' — from the market maker's perspective
     price: Decimal
     size: Decimal
 
@@ -70,13 +70,13 @@ class MarketMakerResult:
     n_quote_ticks: int
     n_trade_ticks: int
     n_fills: int
-    fill_rate: float        # fills / n_trade_ticks (0.0 when no trades)
+    fill_rate: float  # fills / n_trade_ticks (0.0 when no trades)
     realized_pnl: Decimal
-    mtm_pnl: Decimal        # open inventory at final midprice
+    mtm_pnl: Decimal  # open inventory at final midprice
     total_pnl: Decimal
     final_inventory: Decimal
     max_inventory_reached: Decimal
-    sharpe: float | None    # annualised Sharpe of daily P&L; None if < 2 days
+    sharpe: float | None  # annualised Sharpe of daily P&L; None if < 2 days
     fills: list[Fill] = field(default_factory=list)
     pnl_series: list[tuple[datetime, Decimal]] = field(default_factory=list)
 
@@ -144,8 +144,7 @@ def _simulate_mm(
     """
     # Merge and sort by event_ts ascending.
     events: list[dict[str, Any]] = sorted(
-        [{"_kind": "quote", **q} for q in quotes]
-        + [{"_kind": "trade", **t} for t in trades],
+        [{"_kind": "quote", **q} for q in quotes] + [{"_kind": "trade", **t} for t in trades],
         key=lambda e: e["event_ts"],
     )
 

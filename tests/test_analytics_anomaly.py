@@ -167,9 +167,7 @@ def _make_signal_rows(n: int, mid: UUID = _MID1) -> list[dict[str, Any]]:
             ("kyle_lambda", 0.001),
             ("amihud", 0.0001),
         ]:
-            rows.append(
-                {"event_ts": ts, "market_id": mid, "signal_type": sig, "value": val}
-            )
+            rows.append({"event_ts": ts, "market_id": mid, "signal_type": sig, "value": val})
     return rows
 
 
@@ -223,7 +221,7 @@ async def test_detect_anomalies_flags_known_outlier() -> None:
     # Add a single extreme observation in a different hour bucket
     outlier_ts = datetime(2026, 2, 1, 5, 0, 0, tzinfo=UTC)
     for sig, val in [
-        ("microprice", 999.0),        # extreme outlier
+        ("microprice", 999.0),  # extreme outlier
         ("effective_spread", 999.0),
         ("obi", 999.0),
         ("kyle_lambda", 999.0),
@@ -266,9 +264,7 @@ async def test_detect_anomalies_report_fields() -> None:
         signal_rows=_make_signal_rows(15),
     )
     pool = _MockPool(conn)
-    result = await detect_anomalies(
-        pool, window=timedelta(days=5), contamination=0.10
-    )  # type: ignore[arg-type]
+    result = await detect_anomalies(pool, window=timedelta(days=5), contamination=0.10)  # type: ignore[arg-type]
     assert result is not None
     assert result.window == timedelta(days=5)
     assert result.contamination == 0.10

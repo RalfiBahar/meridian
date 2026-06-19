@@ -294,9 +294,7 @@ async def _run_fedwatch(*, fomc_date: date | None, fetch_cme: bool) -> None:
         pmf = await build_kalshi_pmf(pool, fomc_date)
 
     if pmf is None:
-        click.echo(
-            f"No KXFED contracts with p_mid signals found for {fomc_date}.", err=True
-        )
+        click.echo(f"No KXFED contracts with p_mid signals found for {fomc_date}.", err=True)
         return
 
     click.echo(pmf.summary())
@@ -304,9 +302,7 @@ async def _run_fedwatch(*, fomc_date: date | None, fetch_cme: bool) -> None:
     if fetch_cme:
         cme_pmf = await fetch_cme_fedwatch(fomc_date)
         if cme_pmf is None:
-            click.echo(
-                "\nCME FedWatch: unavailable (network error or unrecognized format)."
-            )
+            click.echo("\nCME FedWatch: unavailable (network error or unrecognized format).")
         else:
             click.echo("\n─── CME FedWatch comparison ───")
             click.echo(cme_pmf.summary())
@@ -600,9 +596,7 @@ async def _run_marketmaker(
     configure_logging(settings)
 
     async with pool_context(settings) as pool, pool.acquire() as conn:
-        row = await conn.fetchrow(
-            "SELECT id FROM markets WHERE external_id = $1 LIMIT 1", ticker
-        )
+        row = await conn.fetchrow("SELECT id FROM markets WHERE external_id = $1 LIMIT 1", ticker)
     if row is None:
         click.echo(f"Market not found: {ticker}", err=True)
         return

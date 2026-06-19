@@ -45,9 +45,9 @@ class RegimePoint:
 
     ts: datetime
     market_id: UUID
-    state_id: int    # 0 / 1 / 2 sorted by ascending mean effective_spread
+    state_id: int  # 0 / 1 / 2 sorted by ascending mean effective_spread
     state_name: str  # 'low' / 'medium' / 'high'
-    prob: float      # posterior probability of this state from forward-backward
+    prob: float  # posterior probability of this state from forward-backward
 
 
 @dataclass
@@ -133,9 +133,7 @@ async def detect_regimes(
             random_state=42,
         )
         model.fit(X, lengths)
-        all_states: NDArray[np.intp] = np.asarray(
-            model.predict(X, lengths), dtype=np.intp
-        )
+        all_states: NDArray[np.intp] = np.asarray(model.predict(X, lengths), dtype=np.intp)
         all_probs: NDArray[np.float64] = np.asarray(
             model.predict_proba(X, lengths), dtype=np.float64
         )
@@ -310,7 +308,5 @@ async def _markets_by_category(pool: asyncpg.Pool, category: str) -> list[UUID]:
 
 async def _open_market_ids(pool: asyncpg.Pool) -> list[UUID]:
     async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            "SELECT id FROM markets WHERE resolution_status = 'open'"
-        )
+        rows = await conn.fetch("SELECT id FROM markets WHERE resolution_status = 'open'")
     return [UUID(str(r["id"])) for r in rows]

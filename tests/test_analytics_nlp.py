@@ -77,15 +77,11 @@ def _make_delta(value: float) -> dict[str, Any]:
 
 def _training_pool(n_moving: int = 10, n_stable: int = 10) -> _MockPool:
     """Build a pool returning n_moving market-moving + n_stable stable events."""
-    events = (
-        [_make_event(f"FOMC rate hike {i}") for i in range(n_moving)]
-        + [_make_event(f"routine update {i}") for i in range(n_stable)]
-    )
+    events = [_make_event(f"FOMC rate hike {i}") for i in range(n_moving)] + [
+        _make_event(f"routine update {i}") for i in range(n_stable)
+    ]
     # Alternating deltas: moving events get 0.05, stable get 0.005
-    deltas = (
-        [_make_delta(0.05)] * n_moving
-        + [_make_delta(0.005)] * n_stable
-    )
+    deltas = [_make_delta(0.05)] * n_moving + [_make_delta(0.005)] * n_stable
 
     class _CountingConn(_MockConn):
         def __init__(self) -> None:
@@ -327,6 +323,6 @@ async def test_tagger_summary_format() -> None:
     assert tagger is not None
     s = tagger.summary()
     assert "News Tagger" in s
-    assert "20" in s   # n_events
+    assert "20" in s  # n_events
     assert "fed" in s
     assert "2.0%" in s  # price_delta_threshold default

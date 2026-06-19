@@ -302,9 +302,7 @@ class _TwoQueryPool:
 
 
 async def test_compute_event_response_not_found() -> None:
-    pool = _TwoQueryPool(
-        _TwoQueryConn(event_row=None, market_rows=[], signal_rows=[])
-    )
+    pool = _TwoQueryPool(_TwoQueryConn(event_row=None, market_rows=[], signal_rows=[]))
     result = await compute_event_response(pool, _EVENT_ID)  # type: ignore[arg-type]
     assert result is None
 
@@ -316,9 +314,7 @@ async def test_compute_event_response_no_markets() -> None:
         "category": "fed",
         "label": "FOMC June 2026",
     }
-    pool = _TwoQueryPool(
-        _TwoQueryConn(event_row=event, market_rows=[], signal_rows=[])
-    )
+    pool = _TwoQueryPool(_TwoQueryConn(event_row=event, market_rows=[], signal_rows=[]))
     result = await compute_event_response(pool, _EVENT_ID)  # type: ignore[arg-type]
     assert result is not None
     assert result.n_markets == 0

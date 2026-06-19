@@ -61,9 +61,7 @@ async def test_write_quote_returns_one_on_insert(mock_pool: Any) -> None:
 
 async def test_write_quote_conflict_returns_zero(mock_pool: Any, mock_conn: Any) -> None:
     mock_conn.execute_result = "INSERT 0 0"
-    event = _make_event(
-        QuoteEvent(kind=EventKind.QUOTE, bid=Decimal("0.48"), ask=Decimal("0.52"))
-    )
+    event = _make_event(QuoteEvent(kind=EventKind.QUOTE, bid=Decimal("0.48"), ask=Decimal("0.52")))
     writer = TickWriter(mock_pool)
     result = await writer.write(event)
     assert result == 0
@@ -112,9 +110,7 @@ async def test_write_trade_passes_kind_and_aggressor(mock_pool: Any, mock_conn: 
 
 
 async def test_write_trade_null_aggressor(mock_pool: Any, mock_conn: Any) -> None:
-    event = _make_event(
-        TradeEvent(kind=EventKind.TRADE, price=Decimal("0.50"), size=Decimal("10"))
-    )
+    event = _make_event(TradeEvent(kind=EventKind.TRADE, price=Decimal("0.50"), size=Decimal("10")))
     writer = TickWriter(mock_pool)
     await writer.write(event)
     _, args = mock_conn.executions[0]

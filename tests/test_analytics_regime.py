@@ -85,7 +85,7 @@ def test_build_sequences_single_market_single_bucket() -> None:
     assert _MID1 in seq_map
     assert seq_map[_MID1].shape == (1, 2)
     assert abs(seq_map[_MID1][0, 0] - 0.03) < 1e-9  # effective_spread
-    assert abs(seq_map[_MID1][0, 1] - 0.2) < 1e-9   # obi
+    assert abs(seq_map[_MID1][0, 1] - 0.2) < 1e-9  # obi
     assert len(ts_map[_MID1]) == 1
 
 
@@ -105,7 +105,7 @@ def test_build_sequences_two_markets() -> None:
 
 def test_build_sequences_ignores_non_regime_features() -> None:
     rows = [
-        _regime_row(_MID1, "microprice", 0.5, 0),   # not a regime feature
+        _regime_row(_MID1, "microprice", 0.5, 0),  # not a regime feature
         _regime_row(_MID1, "effective_spread", 0.03, 0),
     ]
     seq_map, _ = _build_sequences(rows)
@@ -151,12 +151,20 @@ def _make_regime_rows(n: int, mid: UUID = _MID1, base_spread: float = 0.03) -> l
     for i in range(n):
         ts = _NOW.replace(hour=i % 24, day=_NOW.day + i // 24)
         rows.append(
-            {"event_ts": ts, "market_id": mid, "signal_type": "effective_spread",
-             "value": float(base_spread + 0.001 * rng.standard_normal())}
+            {
+                "event_ts": ts,
+                "market_id": mid,
+                "signal_type": "effective_spread",
+                "value": float(base_spread + 0.001 * rng.standard_normal()),
+            }
         )
         rows.append(
-            {"event_ts": ts, "market_id": mid, "signal_type": "obi",
-             "value": float(0.1 * rng.standard_normal())}
+            {
+                "event_ts": ts,
+                "market_id": mid,
+                "signal_type": "obi",
+                "value": float(0.1 * rng.standard_normal()),
+            }
         )
     return rows
 

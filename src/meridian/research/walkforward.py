@@ -31,8 +31,8 @@ class Fold:
 
     fold_id: int
     train: NDArray[np.float64]  # (train_size, N) in-sample returns
-    test: NDArray[np.float64]   # (test_size, N) out-of-sample returns
-    train_end: int               # index of last training row
+    test: NDArray[np.float64]  # (test_size, N) out-of-sample returns
+    train_end: int  # index of last training row
     test_start: int
     test_end: int
 
@@ -60,9 +60,7 @@ def make_folds(
     if step is None:
         step = test_size
     if train_size + test_size > T:
-        raise ValueError(
-            f"train_size ({train_size}) + test_size ({test_size}) > T ({T})."
-        )
+        raise ValueError(f"train_size ({train_size}) + test_size ({test_size}) > T ({T}).")
 
     folds = []
     fold_id = 0
@@ -97,7 +95,7 @@ class FoldResult:
 
     fold_id: int
     weights: NDArray[np.float64]
-    oos_returns: NDArray[np.float64]   # per-period portfolio returns (test_size,)
+    oos_returns: NDArray[np.float64]  # per-period portfolio returns (test_size,)
     cumulative_return: float
     annualized_return: float
     annualized_vol: float

@@ -213,7 +213,7 @@ def test_simulate_inventory_suppresses_buy_side() -> None:
     )
     t1 = _T0
     quotes = [
-        _quote(t1, "0.48", "0.52"),                    # second=0 → our_bid=0.49 with full size
+        _quote(t1, "0.48", "0.52"),  # second=0 → our_bid=0.49 with full size
         _quote(t1.replace(second=5), "0.48", "0.52"),  # second=5 → re-evaluate: inv=20 ≥ max
     ]
     # Use trade_size="20" so fill_size = min(20, base_size=10) = 10 per fill.

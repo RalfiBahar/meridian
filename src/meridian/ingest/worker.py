@@ -79,9 +79,7 @@ class KalshiIngestWorker:
             tickers=len(self._tickers),
             channels=list(self._channels),
         )
-        return KalshiWebSocketClient(
-            self._settings, tickers=self._tickers, channels=self._channels
-        )
+        return KalshiWebSocketClient(self._settings, tickers=self._tickers, channels=self._channels)
 
     async def _handle(self, raw: dict[str, Any]) -> None:
         self._stats.received += 1

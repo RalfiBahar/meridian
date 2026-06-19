@@ -93,11 +93,7 @@ def discover_experiments() -> list[str]:
     root = _experiments_root()
     if not root.is_dir():
         return []
-    return sorted(
-        d.name
-        for d in root.iterdir()
-        if d.is_dir() and (d / "run.py").exists()
-    )
+    return sorted(d.name for d in root.iterdir() if d.is_dir() and (d / "run.py").exists())
 
 
 def _sha256_file(path: Path) -> str:

@@ -197,7 +197,10 @@ async def test_simulate_buy_single_level() -> None:
     ]
     pool = _MockPool(_MockConn(book))
     est = await simulate_execution(
-        pool, _MARKET_ID, side="buy", target_quantity=Decimal("100")  # type: ignore[arg-type]
+        pool,
+        _MARKET_ID,
+        side="buy",
+        target_quantity=Decimal("100"),  # type: ignore[arg-type]
     )
     assert isinstance(est, ExecutionEstimate)
     assert est.filled_quantity == Decimal("100")
@@ -213,7 +216,10 @@ async def test_simulate_buy_across_levels() -> None:
     ]
     pool = _MockPool(_MockConn(book))
     est = await simulate_execution(
-        pool, _MARKET_ID, side="buy", target_quantity=Decimal("100")  # type: ignore[arg-type]
+        pool,
+        _MARKET_ID,
+        side="buy",
+        target_quantity=Decimal("100"),  # type: ignore[arg-type]
     )
     assert est.filled_quantity == Decimal("100")
     # 50 @ 0.52 + 50 @ 0.54 = (26 + 27) / 100 = 0.53
@@ -226,7 +232,10 @@ async def test_simulate_buy_across_levels() -> None:
 async def test_simulate_sell_empty_book() -> None:
     pool = _MockPool(_MockConn([]))
     est = await simulate_execution(
-        pool, _MARKET_ID, side="sell", target_quantity=Decimal("100")  # type: ignore[arg-type]
+        pool,
+        _MARKET_ID,
+        side="sell",
+        target_quantity=Decimal("100"),  # type: ignore[arg-type]
     )
     assert est.filled_quantity == Decimal("0")
     assert est.partially_filled
@@ -236,7 +245,10 @@ async def test_simulate_partial_fill() -> None:
     book = [{"side": "ask", "price": "0.52", "size": "30"}]
     pool = _MockPool(_MockConn(book))
     est = await simulate_execution(
-        pool, _MARKET_ID, side="buy", target_quantity=Decimal("100")  # type: ignore[arg-type]
+        pool,
+        _MARKET_ID,
+        side="buy",
+        target_quantity=Decimal("100"),  # type: ignore[arg-type]
     )
     assert est.filled_quantity == Decimal("30")
     assert est.partially_filled

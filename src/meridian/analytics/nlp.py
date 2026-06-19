@@ -39,11 +39,11 @@ class NewsTaggerConfig:
     """Training and prediction parameters for the NLP tagger."""
 
     price_delta_threshold: float = 0.02  # |delta_p| >= this → market-moving label
-    prediction_threshold: float = 0.5    # probability cut-off for is_market_moving
+    prediction_threshold: float = 0.5  # probability cut-off for is_market_moving
     max_features: int = 500
     ngram_range: tuple[int, int] = (1, 2)
-    post_window_hours: int = 1           # how far post-event to measure price delta
-    cv_folds: int = 3                    # cross-validation folds for accuracy estimate
+    post_window_hours: int = 1  # how far post-event to measure price delta
+    cv_folds: int = 3  # cross-validation folds for accuracy estimate
 
 
 @dataclass
@@ -135,14 +135,19 @@ async def train_tagger(
         return None
     categories = sorted({r["category"] for r in rows})
 
-    pipeline = Pipeline([
-        ("tfidf", TfidfVectorizer(
-            max_features=config.max_features,
-            ngram_range=config.ngram_range,
-            sublinear_tf=True,
-        )),
-        ("clf", LogisticRegression(max_iter=1000, random_state=42, class_weight="balanced")),
-    ])
+    pipeline = Pipeline(
+        [
+            (
+                "tfidf",
+                TfidfVectorizer(
+                    max_features=config.max_features,
+                    ngram_range=config.ngram_range,
+                    sublinear_tf=True,
+                ),
+            ),
+            ("clf", LogisticRegression(max_iter=1000, random_state=42, class_weight="balanced")),
+        ]
+    )
 
     cv_accuracy: float | None = None
     if len(texts) >= config.cv_folds * 2:
@@ -175,10 +180,7 @@ async def tag_recent_events(
     """Classify all news events in the recent window."""
     since = datetime.now(tz=UTC) - window
     events = await _fetch_news_events(pool, since, category)
-    return [
-        tagger.predict_one(r["label"], r["category"], UUID(str(r["id"])))
-        for r in events
-    ]
+    return [tagger.predict_one(r["label"], r["category"], UUID(str(r["id"]))) for r in events]
 
 
 async def write_nlp_signals(
@@ -299,7 +301,7 @@ async def _fetch_training_rows(
                 GROUP BY s.market_id
                 HAVING COUNT(*) > 0 AND pre.pre_mean IS NOT NULL
                 """,
-                None,   # unused placeholder ($1 kept consistent)
+                None,  # unused placeholder ($1 kept consistent)
                 cat,
                 occurred,
                 post_end,
@@ -309,12 +311,14 @@ async def _fetch_training_rows(
             abs_delta = float(
                 np.mean([abs(float(r["delta"])) for r in delta_rows if r["delta"] is not None])
             )
-            rows.append({
-                "id": evt["id"],
-                "label": evt["label"],
-                "category": cat,
-                "abs_delta": abs_delta,
-            })
+            rows.append(
+                {
+                    "id": evt["id"],
+                    "label": evt["label"],
+                    "category": cat,
+                    "abs_delta": abs_delta,
+                }
+            )
     return rows
 
 

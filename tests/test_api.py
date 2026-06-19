@@ -563,9 +563,7 @@ async def test_hub_run_broadcasts_event_from_stream() -> None:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return [
-                    ["kalshi.events", [["1-1", {"event": raw_json}]]]
-                ]
+                return [["kalshi.events", [["1-1", {"event": raw_json}]]]]
             # Signal stop on second call.
             raise asyncio.CancelledError
 
@@ -597,9 +595,7 @@ async def test_hub_run_skips_bad_json() -> None:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                return [
-                    ["kalshi.events", [["1-1", {"event": "not-json-{{{}"}]]]
-                ]
+                return [["kalshi.events", [["1-1", {"event": "not-json-{{{}"}]]]]
             raise asyncio.CancelledError
 
     task = asyncio.create_task(hub.run(_MockRedis()))
@@ -832,8 +828,11 @@ def test_tick_row_from_canonical_quote() -> None:
         "event_ts": _NOW.isoformat(),
         "sequence_no": 1,
         "payload": {
-            "kind": "quote", "bid": "0.44", "ask": "0.46",
-            "bid_size": "100", "ask_size": "50",
+            "kind": "quote",
+            "bid": "0.44",
+            "ask": "0.46",
+            "bid_size": "100",
+            "ask_size": "50",
         },
     }
     tick = _tick_row_from_canonical(event)
@@ -931,8 +930,10 @@ def test_ws_market_scanner_auth_rejected(
     app.dependency_overrides[get_hub] = lambda: mock_hub
 
     client = TestClient(app)
-    with pytest.raises(WebSocketDisconnect) as exc_info, \
-            client.websocket_connect("/api/v1/ws/markets"):
+    with (
+        pytest.raises(WebSocketDisconnect) as exc_info,
+        client.websocket_connect("/api/v1/ws/markets"),
+    ):
         pass
     assert exc_info.value.code == 4003
 
@@ -963,9 +964,7 @@ def test_ws_market_ticks_connects_and_seeds_history(sync_app: TestClient) -> Non
         pass  # accept + 0 history ticks + disconnect cleanly
 
 
-def test_ws_market_ticks_auth_rejected(
-    mock_hub: EventHub, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_ws_market_ticks_auth_rejected(mock_hub: EventHub, monkeypatch: pytest.MonkeyPatch) -> None:
     """WS ticks endpoint rejects with code 4003 when API key is wrong."""
     monkeypatch.setenv("MERIDIAN_API_KEYS", "secret123")
 
@@ -978,8 +977,10 @@ def test_ws_market_ticks_auth_rejected(
     app.dependency_overrides[get_hub] = lambda: mock_hub
 
     client = TestClient(app)
-    with pytest.raises(WebSocketDisconnect) as exc_info, \
-            client.websocket_connect(f"/api/v1/ws/markets/{_MARKET_ID}"):
+    with (
+        pytest.raises(WebSocketDisconnect) as exc_info,
+        client.websocket_connect(f"/api/v1/ws/markets/{_MARKET_ID}"),
+    ):
         pass
     assert exc_info.value.code == 4003
 

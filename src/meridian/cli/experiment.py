@@ -161,10 +161,7 @@ async def _run_list(*, name: str | None, limit: int) -> None:
         metrics = r.get("metrics") or {}
         metrics_str = ", ".join(f"{k}={v}" for k, v in list(metrics.items())[:3])
         created = r["created_at"].isoformat()[:19] if r.get("created_at") else "?"
-        click.echo(
-            f"{str(r['name'])[:29]:<30}  {r['status']!s:<10}  "
-            f"{created:<24}  {metrics_str}"
-        )
+        click.echo(f"{str(r['name'])[:29]:<30}  {r['status']!s:<10}  {created:<24}  {metrics_str}")
 
 
 @experiment.command(name="portfolio")
@@ -326,9 +323,11 @@ async def _fetch_returns(
     import pandas as pd
 
     df = pd.DataFrame(
-        {"market_id": [str(r["market_id"]) for r in rows],
-         "event_ts": [r["event_ts"] for r in rows],
-         "value": [float(r["value"]) for r in rows]}
+        {
+            "market_id": [str(r["market_id"]) for r in rows],
+            "event_ts": [r["event_ts"] for r in rows],
+            "value": [float(r["value"]) for r in rows],
+        }
     )
     df["date"] = df["event_ts"].dt.normalize()
     daily = df.groupby(["date", "market_id"])["value"].last().unstack(fill_value=None)
