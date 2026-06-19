@@ -173,6 +173,27 @@ These complete the Phase 1c deliverable.
 
 ---
 
+## Phase 8 — Advanced Analytics: Anomaly Detection + Regime Detection (READY)
+
+These implement the ROADMAP stretch goals.
+
+- [x] **8-a** Anomaly detector: Isolation Forest over the `signals` stream
+  (`analytics/anomaly.py`); detects unusual combinations of microprice,
+  effective_spread, obi, kyle_lambda, amihud; groups observations into hourly
+  buckets per market; median-imputes missing features; writes `anomaly_score`
+  rows to `signals`; CLI: `meridian analytics anomaly [--market TICKER]
+  [--window DAYS] [--contamination FLOAT] [--write-signals]`
+- [x] **8-b** Regime detector: 3-state Gaussian HMM over per-category volatility
+  states (`analytics/regime.py`); trains on `effective_spread` + `obi` signals
+  per market; multi-sequence HMM fit + Viterbi decode; labels states
+  low / medium / high by ascending mean effective_spread; writes `regime_state`
+  rows to `signals`; CLI: `meridian analytics regime [--category fed]
+  [--n-states 3] [--window DAYS] [--write-signals]`; add `hmmlearn>=0.3.0` dep
+- [x] **8-c** Write ≥12 unit tests for anomaly detector and ≥10 for regime detector
+- [x] **8-d** Update CHANGELOG.md with Phase 8 changes
+
+---
+
 ## Ongoing / cross-cutting
 
 - [x] Increase test coverage for `ingest/writer.py` (currently untested in

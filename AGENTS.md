@@ -74,7 +74,9 @@ src/meridian/
 │   ├── calibration.py    # Brier score, log loss, reliability diagram, isotonic recalibration
 │   ├── arb.py            # LP no-arb partition checker + cross-venue divergence monitor
 │   ├── microstructure.py # Effective spread, OBI, Kyle's lambda, Amihud, execution simulator
-│   └── fedwatch.py       # Implied Fed PMF, CME FedWatch fetch, event-response analyzer
+│   ├── fedwatch.py       # Implied Fed PMF, CME FedWatch fetch, event-response analyzer
+│   ├── anomaly.py        # Isolation Forest anomaly detector over signals stream (Phase 8)
+│   └── regime.py         # Gaussian HMM regime detector: low/medium/high volatility (Phase 8)
 ├── research/
 │   ├── __init__.py
 │   ├── experiment.py   # Experiment runner + DB persistence (experiments table)
@@ -188,7 +190,7 @@ make check        # lint + typecheck + unit tests
 
 ---
 
-## Current phase status (as of 2026-06-18)
+## Current phase status (as of 2026-06-19)
 
 | Phase | Description | Status |
 |---|---|---|
@@ -203,6 +205,7 @@ make check        # lint + typecheck + unit tests
 | 5 | Implied Fed-rate distribution + event-response model | Done |
 | 6 | Research framework + portfolio optimizer | Done |
 | 7 | Quant Terminal frontend + production polish | Done |
+| 8 | Anomaly detection + regime detection (stretch goals) | Done |
 
 ## Phase 7 layout (added 2026-06-18)
 

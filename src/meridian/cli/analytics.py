@@ -334,6 +334,198 @@ async def _next_kxfed_date(pool: object) -> date | None:
     return result
 
 
+@analytics.command(name="anomaly")
+@click.option(
+    "--market",
+    "ticker",
+    default=None,
+    metavar="TICKER",
+    help="Restrict to a single market by external ID. Omit for all open markets.",
+)
+@click.option(
+    "--window",
+    default=7,
+    show_default=True,
+    type=int,
+    metavar="DAYS",
+    help="Rolling window in days.",
+)
+@click.option(
+    "--contamination",
+    default=0.05,
+    show_default=True,
+    type=float,
+    help="Expected fraction of anomalies (IsolationForest contamination).",
+)
+@click.option(
+    "--write-signals",
+    is_flag=True,
+    default=False,
+    help="Persist anomaly_score rows to the signals table.",
+)
+def anomaly_cmd(
+    ticker: str | None,
+    window: int,
+    contamination: float,
+    write_signals: bool,
+) -> None:
+    """Detect anomalous market observations using Isolation Forest.
+
+    Reads microprice, effective_spread, obi, kyle_lambda, and amihud signals
+    from the signals table, groups them into hourly buckets per market, and
+    fits an IsolationForest.  Observations with a negative decision-function
+    score are flagged as anomalies.
+
+    Requires prior runs of `meridian analytics signals` and
+    `meridian analytics microstructure` to populate the signals table.
+    """
+    asyncio.run(
+        _run_anomaly(
+            ticker=ticker,
+            window_days=window,
+            contamination=contamination,
+            write_signals=write_signals,
+        )
+    )
+
+
+async def _run_anomaly(
+    *,
+    ticker: str | None,
+    window_days: int,
+    contamination: float,
+    write_signals: bool,
+) -> None:
+    from meridian.analytics.anomaly import AnomalyReport, detect_anomalies, write_anomaly_signals
+
+    settings = get_settings()
+    configure_logging(settings)
+
+    market_id: UUID | None = None
+    if ticker is not None:
+        async with pool_context(settings) as pool, pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id FROM markets WHERE external_id = $1 LIMIT 1", ticker
+            )
+        if row is None:
+            click.echo(f"Market not found: {ticker}", err=True)
+            return
+        market_id = UUID(str(row["id"]))
+
+    async with pool_context(settings) as pool:
+        report: AnomalyReport | None = await detect_anomalies(
+            pool,
+            market_id=market_id,
+            window=timedelta(days=window_days),
+            contamination=contamination,
+        )
+
+    if report is None:
+        click.echo(
+            "Insufficient signal data — need at least 10 hourly observations. "
+            "Run `meridian analytics signals` and `meridian analytics microstructure` first.",
+            err=True,
+        )
+        return
+
+    click.echo(report.summary())
+
+    if write_signals:
+        async with pool_context(settings) as pool:
+            n = await write_anomaly_signals(pool, report)
+        click.echo(f"\nWrote {n} anomaly_score signal rows.")
+
+
+@analytics.command(name="regime")
+@click.option(
+    "--category",
+    default=None,
+    metavar="CATEGORY",
+    help="Filter markets by category (e.g. 'fed'). Omit for all open markets.",
+)
+@click.option(
+    "--n-states",
+    default=3,
+    show_default=True,
+    type=int,
+    help="Number of HMM states (typically 2 or 3).",
+)
+@click.option(
+    "--window",
+    default=30,
+    show_default=True,
+    type=int,
+    metavar="DAYS",
+    help="Rolling window in days.",
+)
+@click.option(
+    "--write-signals",
+    is_flag=True,
+    default=False,
+    help="Persist regime_state rows to the signals table.",
+)
+def regime_cmd(
+    category: str | None,
+    n_states: int,
+    window: int,
+    write_signals: bool,
+) -> None:
+    """Detect volatility regimes using a Gaussian Hidden Markov Model.
+
+    Trains a k-state Gaussian HMM on effective_spread and obi signals for
+    markets in the given category.  States are labeled low / medium / high
+    by ascending mean effective_spread of each HMM component.  The current
+    regime (most recent observation) is printed along with state frequencies.
+
+    Requires prior runs of `meridian analytics microstructure` to populate
+    effective_spread and obi signals.
+    """
+    asyncio.run(
+        _run_regime(
+            category=category,
+            n_states=n_states,
+            window_days=window,
+            write_signals=write_signals,
+        )
+    )
+
+
+async def _run_regime(
+    *,
+    category: str | None,
+    n_states: int,
+    window_days: int,
+    write_signals: bool,
+) -> None:
+    from meridian.analytics.regime import RegimeResult, detect_regimes, write_regime_signals
+
+    settings = get_settings()
+    configure_logging(settings)
+
+    async with pool_context(settings) as pool:
+        result: RegimeResult | None = await detect_regimes(
+            pool,
+            category=category,
+            n_states=n_states,
+            window=timedelta(days=window_days),
+        )
+
+    if result is None:
+        click.echo(
+            "Insufficient signal data — need at least 20 hourly observations. "
+            "Run `meridian analytics microstructure` first.",
+            err=True,
+        )
+        return
+
+    click.echo(result.summary())
+
+    if write_signals:
+        async with pool_context(settings) as pool:
+            n = await write_regime_signals(pool, result)
+        click.echo(f"\nWrote {n} regime_state signal rows.")
+
+
 @analytics.command(name="event-response")
 @click.argument("event_id")
 @click.option(

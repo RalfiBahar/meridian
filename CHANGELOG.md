@@ -7,7 +7,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-*All phases complete. Ongoing cross-cutting tasks resolved.*
+*All phases and Phase 8 stretch goals complete.*
+
+---
+
+## Phase 8 — Anomaly Detection + Regime Detection — 2026-06-19
+
+### Added
+- `src/meridian/analytics/anomaly.py` — Isolation Forest anomaly detector:
+  - `_build_feature_matrix(rows)` — pivots signal rows into hourly
+    (market_id, hour) feature buckets; missing features encoded as NaN;
+    all-NaN buckets dropped; latest value wins within each bucket
+  - `detect_anomalies(pool, *, market_id, window, contamination)` — fits
+    `IsolationForest` on microprice / effective_spread / obi / kyle_lambda /
+    amihud signals; median-imputes missing features; StandardScaler before
+    fitting; returns `AnomalyReport` or None when < 10 observations
+  - `write_anomaly_signals(pool, report)` — persists `anomaly_score` rows
+    (decision-function output; negative = anomalous) to `signals` table
+  - `AnomalyPoint` dataclass: ts, market_id, features dict, score, is_anomaly
+  - `AnomalyReport` dataclass: market_ids, window, contamination,
+    n_observations, n_anomalies, points, `summary()` (top 10 anomalies)
+- `src/meridian/analytics/regime.py` — Gaussian HMM regime detector:
+  - `_build_sequences(rows)` — groups effective_spread + obi signals into
+    per-market hourly time-ordered float64 sequences; NaN for missing features
+  - `detect_regimes(pool, *, category, n_states, window)` — fits
+    `GaussianHMM(n_components=n_states, covariance_type="diag")` via
+    multi-sequence API; Viterbi decoding; states labeled low/medium/high by
+    ascending mean effective_spread; returns `RegimeResult` or None when
+    < 20 observations or HMM fails to converge
+  - `write_regime_signals(pool, result)` — persists `regime_state` rows
+    (value = state_id 0/1/2; metadata carries state_name + posterior prob)
+  - `RegimePoint` dataclass: ts, market_id, state_id, state_name, prob
+  - `RegimeResult` dataclass: category, n_states, n_observations,
+    current_state, points, `summary()` (state frequencies table)
+- `src/meridian/cli/analytics.py`:
+  - `meridian analytics anomaly [--market TICKER] [--window DAYS]
+    [--contamination FLOAT] [--write-signals]` — anomaly detection CLI
+  - `meridian analytics regime [--category CATEGORY] [--n-states N]
+    [--window DAYS] [--write-signals]` — regime detection CLI
+- `tests/test_analytics_anomaly.py` — 17 unit tests: feature matrix (empty,
+  single bucket, two markets, latest-value-wins, all-NaN drops,
+  ignores-unknown types), detect_anomalies (no markets, too few obs,
+  10 obs report, single-market arg, known outlier, contamination, fields),
+  write_anomaly_signals (executemany, empty), summary format
+- `tests/test_analytics_regime.py` — 19 unit tests: sequences (empty, single
+  bucket, two markets, non-regime features, all-NaN drops, ordering),
+  detect_regimes (no markets, too few obs, sufficient obs, state names,
+  state ids, 2-state, posteriors valid, current state, category query),
+  write_regime_signals (executemany, empty), summary format
+
+### Changed
+- `pyproject.toml` — added `hmmlearn>=0.3.0` dependency; added `hmmlearn.*`
+  to mypy `ignore_missing_imports` overrides
+- `TASKS.md` — Phase 8 tasks 8-a through 8-c marked `[x]`
+- `AGENTS.md` — Phase 8 status updated to Done
 
 ---
 
