@@ -213,6 +213,24 @@ Implements the final ROADMAP stretch goal.
 
 ---
 
+## Phase 10 — News → Price NLP Tagger (DONE)
+
+Implements the final ROADMAP stretch goal.
+
+- [x] **10-a** `analytics/nlp.py` — TF-IDF + LogisticRegression news tagger:
+  `NewsTaggerConfig` / `NewsTagResult` / `NewsTagger` dataclasses;
+  `train_tagger(pool, ...)` fits pipeline on historical (label, category) →
+  abs(delta_p) pairs; `tag_recent_events` batch-classifies; `write_nlp_signals`
+  persists `market_moving_prob` rows to signals; `_top_tokens_for_text` extracts
+  explanatory tokens from classifier coefficients
+- [x] **10-b** CLI: `meridian analytics nlp-tag [--category CATEGORY]
+  [--train-window DAYS] [--tag-window DAYS] [--price-threshold FLOAT]
+  [--write-signals]`
+- [x] **10-c** Write ≥12 unit tests covering tagger training, prediction, and signals
+- [x] **10-d** Update CHANGELOG.md with Phase 10 changes
+
+---
+
 ## Ongoing / cross-cutting
 
 - [x] Increase test coverage for `ingest/writer.py` (currently untested in

@@ -180,9 +180,9 @@ Sharpe/drawdown across expanding windows of Fed-rate market probabilities.
 
 ---
 
-## Stretch goals (post-Phase-7)
+## Stretch goals (post-Phase-7) — all complete
 
-- Regime detection: HMM over volatility states per category
-- Anomaly detector: isolation forest / autoencoder over signal stream
-- News → price NLP layer: fine-tuned tagger for market-moving events
-- Simulated market maker: inventory management in the backtester
+- [x] Regime detection: HMM over volatility states per category (Phase 8)
+- [x] Anomaly detector: isolation forest over signal stream (Phase 8)
+- [x] Simulated market maker: inventory management in the backtester (Phase 9)
+- [x] News → price NLP layer: TF-IDF + LogReg market-moving event tagger (Phase 10)

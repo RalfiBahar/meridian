@@ -632,6 +632,124 @@ async def _run_marketmaker(
     click.echo(result.summary())
 
 
+@analytics.command(name="nlp-tag")
+@click.option(
+    "--category",
+    default=None,
+    help="Filter to events in this category. Omit for all.",
+)
+@click.option(
+    "--train-window",
+    default=90,
+    show_default=True,
+    type=int,
+    metavar="DAYS",
+    help="Training window in days (historical events with measured price delta).",
+)
+@click.option(
+    "--tag-window",
+    default=7,
+    show_default=True,
+    type=int,
+    metavar="DAYS",
+    help="Window of recent events to classify.",
+)
+@click.option(
+    "--price-threshold",
+    default=0.02,
+    show_default=True,
+    type=float,
+    metavar="FLOAT",
+    help="Abs delta_p threshold for 'market-moving' label during training.",
+)
+@click.option(
+    "--write-signals",
+    is_flag=True,
+    default=False,
+    help="Persist market_moving_prob signals to the signals table.",
+)
+def nlp_tag_cmd(
+    category: str | None,
+    train_window: int,
+    tag_window: int,
+    price_threshold: float,
+    write_signals: bool,
+) -> None:
+    """Train a news tagger and classify recent events as market-moving or not.
+
+    Trains a TF-IDF + LogisticRegression pipeline on historical news events
+    paired with their measured p_mid delta.  Then classifies events in the
+    last TAG_WINDOW days and prints probabilities.
+    """
+    asyncio.run(
+        _run_nlp_tag(
+            category=category,
+            train_window_days=train_window,
+            tag_window_days=tag_window,
+            price_threshold=price_threshold,
+            write_signals=write_signals,
+        )
+    )
+
+
+async def _run_nlp_tag(
+    *,
+    category: str | None,
+    train_window_days: int,
+    tag_window_days: int,
+    price_threshold: float,
+    write_signals: bool,
+) -> None:
+    from meridian.analytics.nlp import NewsTaggerConfig, tag_recent_events, train_tagger
+    from meridian.analytics.nlp import write_nlp_signals as _write_signals
+
+    settings = get_settings()
+    configure_logging(settings)
+
+    async with pool_context(settings) as pool:
+        config = NewsTaggerConfig(price_delta_threshold=price_threshold)
+        tagger = await train_tagger(
+            pool,
+            category=category,
+            window=timedelta(days=train_window_days),
+            config=config,
+        )
+        if tagger is None:
+            click.echo(
+                "Not enough training data (need >= 10 events with measured price delta).",
+                err=True,
+            )
+            return
+
+        click.echo(tagger.summary())
+        click.echo()
+
+        results = await tag_recent_events(
+            pool,
+            tagger,
+            category=category,
+            window=timedelta(days=tag_window_days),
+        )
+
+    if not results:
+        click.echo(f"No news events in the last {tag_window_days} days.")
+        return
+
+    click.echo(f"{'Label':<50} {'Category':<15} {'P(moving)':>10} {'Moving?':>8}")
+    click.echo("-" * 87)
+    for r in sorted(results, key=lambda x: x.market_moving_prob, reverse=True):
+        flag = "YES" if r.is_market_moving else "no"
+        click.echo(f"{r.label[:50]:<50} {r.category:<15} {r.market_moving_prob:>10.3f} {flag:>8}")
+
+    n_moving = sum(1 for r in results if r.is_market_moving)
+    click.echo(f"\n{n_moving}/{len(results)} events classified as market-moving.")
+
+    if write_signals:
+        async with pool_context(settings) as pool:
+            n = await _write_signals(pool, results)
+        click.echo(f"Wrote {n} market_moving_prob signals.")
+
+
 @analytics.command(name="event-response")
 @click.argument("event_id")
 @click.option(

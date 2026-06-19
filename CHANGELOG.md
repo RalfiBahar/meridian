@@ -7,7 +7,55 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-*All phases and Phase 8 + 9 stretch goals complete.*
+*All phases and all four stretch goals complete.*
+
+---
+
+## Phase 10 — News → Price NLP Tagger — 2026-06-19
+
+### Added
+- `src/meridian/analytics/nlp.py` — TF-IDF + LogisticRegression news tagger:
+  - `NewsTaggerConfig` dataclass: price_delta_threshold, prediction_threshold,
+    max_features, ngram_range, post_window_hours, cv_folds
+  - `NewsTagResult` dataclass: event_id, label, category, market_moving_prob,
+    is_market_moving, top_tokens
+  - `NewsTagger` dataclass: trained classifier + config + CV accuracy;
+    `predict_one(label, category, event_id)` classifies a single event;
+    `summary()` prints model configuration
+  - `train_tagger(pool, *, category, window, config)` — fetches news events,
+    measures abs(mean_delta_p) in the post_window_hours after each event for
+    markets in the same category, builds (label, category) → binary labels,
+    trains a TF-IDF (sublinear_tf, max_features, ngrams) + balanced
+    LogisticRegression pipeline; returns None when < 10 labeled examples or
+    when only one class is present in the training data
+  - `tag_recent_events(pool, tagger, *, category, window)` — fetches recent
+    news events and classifies each with the trained tagger
+  - `write_nlp_signals(pool, results)` — persists market_moving_prob signals
+    to the signals table (one row per result; value = predicted probability;
+    metadata carries label, category, is_market_moving flag, top_tokens)
+  - `_event_text(label, category)` — combines category prefix + label into
+    a single string for TF-IDF input
+  - `_top_tokens_for_text(pipeline, text)` — returns the top-5 TF-IDF tokens
+    in the text that have the highest positive LogisticRegression coefficient
+    (most predictive of market-moving class)
+- `src/meridian/cli/analytics.py`:
+  - `meridian analytics nlp-tag [--category CATEGORY] [--train-window DAYS]
+    [--tag-window DAYS] [--price-threshold FLOAT] [--write-signals]`
+    — trains tagger, prints summary, classifies recent events sorted by
+    market_moving_prob
+- `tests/test_analytics_nlp.py` — 18 unit tests:
+  - `_event_text`: combines category + label, category differentiation
+  - `train_tagger`: no events → None, < min events → None, sufficient data →
+    tagger, categories recorded, custom config, moving vs stable separation
+  - `predict_one`: result fields, threshold=0 → always True, top_tokens list
+  - `_top_tokens_for_text`: returns strings, handles OOV text
+  - `tag_recent_events`: returns list with labels, empty on no events
+  - `write_nlp_signals`: executemany called, empty list → no call
+  - `NewsTagger.summary()` format
+
+### Changed
+- `TASKS.md` — Phase 10 tasks added and marked `[x]`
+- `AGENTS.md` — Phase 10 status added; nlp.py added to source layout
 
 ---
 
