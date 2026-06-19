@@ -6,6 +6,7 @@ pool so no Docker stack is required.
 
 from __future__ import annotations
 
+import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
@@ -13,6 +14,8 @@ from uuid import UUID
 
 import httpx
 import pytest
+from starlette.testclient import TestClient
+from starlette.websockets import WebSocketDisconnect
 
 from meridian.api.hub import EventHub
 
@@ -457,3 +460,363 @@ async def test_hub_drops_on_full_queue() -> None:
     # Next broadcast should not raise; it silently drops.
     await hub._broadcast("test", {"overflow": True})  # type: ignore[attr-defined]
     assert q.full()
+
+
+# ---------------------------------------------------------------------------
+# Market detail (found case) + helper functions
+# ---------------------------------------------------------------------------
+
+_QUOTE_TICK_ROW: dict[str, Any] = {
+    "event_ts": _NOW,
+    "sequence_no": 42,
+    "kind": "quote",
+    "bid": 0.44,
+    "ask": 0.46,
+    "bid_size": 100.0,
+    "ask_size": 50.0,
+    "trade_price": None,
+    "trade_size": None,
+    "payload": None,
+}
+
+_BOOK_DELTA_TICK_ROW: dict[str, Any] = {
+    "event_ts": _NOW,
+    "sequence_no": 43,
+    "kind": "book_delta",
+    "bid": None,
+    "ask": None,
+    "bid_size": None,
+    "ask_size": None,
+    "trade_price": None,
+    "trade_size": None,
+    "payload": json.dumps({"side": "yes", "price": "0.45", "delta": "10"}),
+}
+
+
+@pytest.fixture
+def detail_client_with_ticks(mock_hub: EventHub) -> httpx.AsyncClient:
+    """detail_client variant that also returns a quote tick row."""
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    class _TickPool:
+        def __init__(self) -> None:
+            self._call = 0
+
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _TickConn(self._call)
+            self._call += 1
+
+    class _TickConn:
+        def __init__(self, call_idx: int) -> None:
+            self._call_idx = call_idx
+
+        async def fetchrow(self, query: str, *args: object) -> Any:
+            return _MockRecord(_DETAIL_ROW)
+
+        async def fetch(self, query: str, *args: object) -> list[Any]:
+            if self._call_idx == 1:
+                return [_MockRecord(r) for r in _SIGNAL_ROWS]
+            if self._call_idx == 3:  # _fetch_recent_ticks
+                return [_MockRecord(_QUOTE_TICK_ROW), _MockRecord(_BOOK_DELTA_TICK_ROW)]
+            return []
+
+        async def fetchval(self, query: str, *args: object) -> Any:
+            return None
+
+    pool = _TickPool()
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: pool
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+    return httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),  # type: ignore[arg-type]
+        base_url="http://test",
+    )
+
+
+async def test_market_detail_found(detail_client: httpx.AsyncClient) -> None:
+    """200 with signals when the market exists."""
+    async with detail_client:
+        resp = await detail_client.get(f"/api/v1/markets/{_MARKET_ID}")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["external_id"] == "KXFED-26JUN-T3.75"
+    assert body["venue"] == "kalshi"
+    assert body["signals"]["p_mid"] == pytest.approx(0.45)
+    assert body["signals"]["p_bid"] == pytest.approx(0.44)
+    assert body["book"] == []
+    assert body["recent_ticks"] == []
+
+
+async def test_market_detail_includes_ticks(
+    detail_client_with_ticks: httpx.AsyncClient,
+) -> None:
+    """Market detail response contains tick rows when DB returns them."""
+    async with detail_client_with_ticks:
+        resp = await detail_client_with_ticks.get(f"/api/v1/markets/{_MARKET_ID}")
+    assert resp.status_code == 200
+    ticks = resp.json()["recent_ticks"]
+    assert len(ticks) == 2
+
+    quote = ticks[0]
+    assert quote["kind"] == "quote"
+    assert quote["bid"] == pytest.approx(0.44)
+    assert quote["ask"] == pytest.approx(0.46)
+    assert quote["bid_size"] == pytest.approx(100.0)
+    assert quote["side"] is None
+
+    delta = ticks[1]
+    assert delta["kind"] == "book_delta"
+    assert delta["side"] == "yes"
+    assert delta["book_price"] == pytest.approx(0.45)
+    assert delta["book_delta"] == pytest.approx(10.0)
+
+
+# ---------------------------------------------------------------------------
+# Helper function unit tests
+# ---------------------------------------------------------------------------
+
+
+def test_f_returns_float() -> None:
+    from meridian.api.routes.markets import _f
+
+    assert _f(0.5) == pytest.approx(0.5)
+    assert isinstance(_f(0.5), float)
+
+
+def test_f_returns_none_for_none() -> None:
+    from meridian.api.routes.markets import _f
+
+    assert _f(None) is None
+
+
+def test_f_converts_string_number() -> None:
+    from meridian.api.routes.markets import _f
+
+    assert _f("0.45") == pytest.approx(0.45)
+
+
+def test_tick_row_from_db_quote_kind() -> None:
+    from meridian.api.routes.markets import _tick_row_from_db
+
+    tick = _tick_row_from_db(_QUOTE_TICK_ROW)
+    assert tick.kind == "quote"
+    assert tick.bid == pytest.approx(0.44)
+    assert tick.ask == pytest.approx(0.46)
+    assert tick.side is None
+    assert tick.book_price is None
+    assert tick.book_delta is None
+
+
+def test_tick_row_from_db_book_delta_json_string() -> None:
+    from meridian.api.routes.markets import _tick_row_from_db
+
+    tick = _tick_row_from_db(_BOOK_DELTA_TICK_ROW)
+    assert tick.kind == "book_delta"
+    assert tick.side == "yes"
+    assert tick.book_price == pytest.approx(0.45)
+    assert tick.book_delta == pytest.approx(10.0)
+    assert tick.bid is None
+
+
+def test_tick_row_from_db_book_delta_dict_payload() -> None:
+    """payload already a dict (e.g. asyncpg returns JSONB as dict)."""
+    from meridian.api.routes.markets import _tick_row_from_db
+
+    row = {**_BOOK_DELTA_TICK_ROW, "payload": {"side": "no", "price": "0.55", "delta": "-5"}}
+    tick = _tick_row_from_db(row)
+    assert tick.side == "no"
+    assert tick.book_price == pytest.approx(0.55)
+    assert tick.book_delta == pytest.approx(-5.0)
+
+
+def test_tick_row_from_canonical_quote() -> None:
+    from meridian.api.routes.markets import _tick_row_from_canonical
+
+    event: dict[str, Any] = {
+        "event_ts": _NOW.isoformat(),
+        "sequence_no": 1,
+        "payload": {
+            "kind": "quote", "bid": "0.44", "ask": "0.46",
+            "bid_size": "100", "ask_size": "50",
+        },
+    }
+    tick = _tick_row_from_canonical(event)
+    assert tick.kind == "quote"
+    assert tick.bid == pytest.approx(0.44)
+    assert tick.ask == pytest.approx(0.46)
+    assert tick.bid_size == pytest.approx(100.0)
+    assert tick.trade_price is None
+
+
+def test_tick_row_from_canonical_trade() -> None:
+    from meridian.api.routes.markets import _tick_row_from_canonical
+
+    event: dict[str, Any] = {
+        "event_ts": _NOW.isoformat(),
+        "sequence_no": 2,
+        "payload": {"kind": "trade", "price": "0.45", "size": "200"},
+    }
+    tick = _tick_row_from_canonical(event)
+    assert tick.kind == "trade"
+    assert tick.trade_price == pytest.approx(0.45)
+    assert tick.trade_size == pytest.approx(200.0)
+    assert tick.bid is None
+
+
+def test_tick_row_from_canonical_book_delta() -> None:
+    from meridian.api.routes.markets import _tick_row_from_canonical
+
+    event: dict[str, Any] = {
+        "event_ts": _NOW.isoformat(),
+        "sequence_no": 3,
+        "payload": {"kind": "book_delta", "side": "yes", "price": "0.45", "delta": "10"},
+    }
+    tick = _tick_row_from_canonical(event)
+    assert tick.kind == "book_delta"
+    assert tick.side == "yes"
+    assert tick.book_price == pytest.approx(0.45)
+    assert tick.book_delta == pytest.approx(10.0)
+    assert tick.bid is None
+
+
+def test_tick_row_from_canonical_unknown_kind() -> None:
+    from meridian.api.routes.markets import _tick_row_from_canonical
+
+    event: dict[str, Any] = {
+        "event_ts": _NOW.isoformat(),
+        "sequence_no": 4,
+        "payload": {"kind": "status", "status": "open"},
+    }
+    tick = _tick_row_from_canonical(event)
+    assert tick.kind == "status"
+    assert tick.bid is None
+    assert tick.side is None
+
+
+# ---------------------------------------------------------------------------
+# WebSocket endpoint tests (use starlette TestClient, not httpx)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def sync_app(mock_hub: EventHub) -> TestClient:
+    """Synchronous starlette TestClient — uses an empty pool (no rows)."""
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    empty_pool = _MockPool([], val=0)
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: empty_pool
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+    return TestClient(app)
+
+
+def test_ws_market_scanner_sends_snapshot(sync_app: TestClient) -> None:
+    """WS scanner sends a snapshot frame immediately on connect."""
+    with sync_app.websocket_connect("/api/v1/ws/markets") as ws:
+        data = ws.receive_json()
+    assert data["type"] == "snapshot"
+    assert "total" in data
+    assert "markets" in data
+
+
+def test_ws_market_scanner_auth_rejected(
+    mock_hub: EventHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WS scanner rejects connection with code 4003 when API key is wrong."""
+    monkeypatch.setenv("MERIDIAN_API_KEYS", "secret123")
+
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    mock_pool_empty = _MockPool([], val=0)
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: mock_pool_empty
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+
+    client = TestClient(app)
+    with pytest.raises(WebSocketDisconnect) as exc_info, \
+            client.websocket_connect("/api/v1/ws/markets"):
+        pass
+    assert exc_info.value.code == 4003
+
+
+def test_ws_authorized_no_keys_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_ws_authorized returns True when no API keys are configured."""
+    from meridian.api.routes.markets import _ws_authorized
+
+    monkeypatch.delenv("MERIDIAN_API_KEYS", raising=False)
+    # websocket arg is not used inside the function body
+    assert _ws_authorized(None, None) is True  # type: ignore[arg-type]
+    assert _ws_authorized(None, "anykey") is True  # type: ignore[arg-type]
+
+
+def test_ws_authorized_with_configured_keys(monkeypatch: pytest.MonkeyPatch) -> None:
+    """_ws_authorized validates the api_key against MERIDIAN_API_KEYS."""
+    from meridian.api.routes.markets import _ws_authorized
+
+    monkeypatch.setenv("MERIDIAN_API_KEYS", "good-key")
+    assert _ws_authorized(None, "good-key") is True  # type: ignore[arg-type]
+    assert _ws_authorized(None, "bad-key") is False  # type: ignore[arg-type]
+    assert _ws_authorized(None, None) is False  # type: ignore[arg-type]
+
+
+def test_ws_market_ticks_connects_and_seeds_history(sync_app: TestClient) -> None:
+    """WS ticks endpoint accepts the connection and returns empty history."""
+    with sync_app.websocket_connect(f"/api/v1/ws/markets/{_MARKET_ID}"):
+        pass  # accept + 0 history ticks + disconnect cleanly
+
+
+def test_ws_market_ticks_auth_rejected(
+    mock_hub: EventHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """WS ticks endpoint rejects with code 4003 when API key is wrong."""
+    monkeypatch.setenv("MERIDIAN_API_KEYS", "secret123")
+
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    mock_pool_empty = _MockPool([], val=0)
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: mock_pool_empty
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+
+    client = TestClient(app)
+    with pytest.raises(WebSocketDisconnect) as exc_info, \
+            client.websocket_connect(f"/api/v1/ws/markets/{_MARKET_ID}"):
+        pass
+    assert exc_info.value.code == 4003
+
+
+def test_ws_market_ticks_sends_history(mock_hub: EventHub) -> None:
+    """WS ticks endpoint sends seeded history ticks on connect."""
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    class _HistoryConn:
+        async def fetch(self, *args: object, **kwargs: object) -> list[Any]:
+            return [_MockRecord(_QUOTE_TICK_ROW)]
+
+        async def fetchval(self, *args: object, **kwargs: object) -> int:
+            return 0
+
+    class _HistoryPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _HistoryConn()
+
+    pool = _HistoryPool()
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: pool
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+
+    client = TestClient(app)
+    with client.websocket_connect(f"/api/v1/ws/markets/{_MARKET_ID}") as ws:
+        data = ws.receive_json()
+
+    assert data["type"] == "tick"
+    assert data["data"]["kind"] == "quote"
+    assert data["data"]["bid"] == pytest.approx(0.44)
+    assert data["data"]["ask"] == pytest.approx(0.46)
