@@ -53,6 +53,10 @@ class TickRow(BaseModel):
     ask_size: float | None
     trade_price: float | None
     trade_size: float | None
+    # book_delta fields (from payload jsonb)
+    side: str | None = None
+    book_price: float | None = None
+    book_delta: float | None = None
 
 
 class BookLevel(BaseModel):

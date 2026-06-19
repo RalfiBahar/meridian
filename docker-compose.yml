@@ -31,6 +31,55 @@ services:
       timeout: 3s
       retries: 30
 
+  ingest-kalshi:
+    build: .
+    container_name: meridian-ingest-kalshi
+    command:
+      - python
+      - -m
+      - meridian.cli
+      - ingest
+      - kalshi
+      - --tickers
+      - KXFED-27APR-T4.25,KXFED-27APR-T4.00,KXFED-27APR-T3.75,KXFED-27APR-T3.50,KXFED-27APR-T3.25,KXFED-27APR-T3.00,KXHIGHNY-26JUN19-B83.5,KXHIGHNY-26JUN19-B85.5,KXHIGHNY-26JUN19-B87.5
+    env_file:
+      - .env
+    environment:
+      MERIDIAN_POSTGRES_DSN: postgresql://meridian:meridian@timescale:5432/meridian
+      MERIDIAN_REDIS_URL: redis://redis:6379/0
+      MERIDIAN_KALSHI_PRIVATE_KEY_PATH: /run/secrets/kalshi-private-key.pem
+    volumes:
+      - ${HOME}/.config/meridian/kalshi-private-key.pem:/run/secrets/kalshi-private-key.pem:ro
+    depends_on:
+      timescale:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ingest-polymarket:
+    build: .
+    container_name: meridian-ingest-polymarket
+    command:
+      - python
+      - -m
+      - meridian.cli
+      - ingest
+      - polymarket
+      - --assets
+      - 88275040060084773376557187972215267513049848642895776801789297917961077894224,94376205816022955542979635542279932967359915765455578534002478996104754801969,21695138873211375451055566770107682325494206727818897067665810321709249824909
+    env_file:
+      - .env
+    environment:
+      MERIDIAN_POSTGRES_DSN: postgresql://meridian:meridian@timescale:5432/meridian
+      MERIDIAN_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      timescale:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   prometheus:
     image: prom/prometheus:latest
     container_name: meridian-prometheus

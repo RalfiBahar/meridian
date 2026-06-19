@@ -41,6 +41,9 @@ export interface TickRow {
   ask_size: number | null;
   trade_price: number | null;
   trade_size: number | null;
+  side?: string | null;
+  book_price?: number | null;
+  book_delta?: number | null;
 }
 
 export interface BookLevel {

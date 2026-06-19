@@ -36,7 +36,7 @@ export default function ArbMonitorClient({ initialData }: Props) {
   );
 
   const { status: wsStatus } = useWs({
-    path: "/ws/arb",
+    path: "/api/v1/ws/arb",
     onMessage: (ev: WsEvent) => {
       if (ev.type === "arb_snapshot") {
         setData(ev.data);

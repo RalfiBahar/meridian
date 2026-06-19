@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from typing import Any
 from uuid import UUID
 
@@ -37,6 +38,68 @@ router = APIRouter()
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _f(v: Any) -> float | None:
+    return float(v) if v is not None else None
+
+
+def _tick_row_from_db(row: dict[str, Any]) -> TickRow:
+    side = book_price = book_delta = None
+    if row["kind"] == "book_delta" and row.get("payload"):
+        raw = row["payload"]
+        payload = json.loads(raw) if isinstance(raw, str) else raw
+        side = payload.get("side")
+        book_price = _f(payload.get("price"))
+        book_delta = _f(payload.get("delta"))
+    return TickRow(
+        event_ts=row["event_ts"],
+        sequence_no=int(row["sequence_no"]),
+        kind=row["kind"],
+        bid=_f(row["bid"]),
+        ask=_f(row["ask"]),
+        bid_size=_f(row["bid_size"]),
+        ask_size=_f(row["ask_size"]),
+        trade_price=_f(row["trade_price"]),
+        trade_size=_f(row["trade_size"]),
+        side=side,
+        book_price=book_price,
+        book_delta=book_delta,
+    )
+
+
+def _tick_row_from_canonical(event: dict[str, Any]) -> TickRow:
+    """Map a CanonicalEvent dict (from Redis) to the TickRow wire format."""
+    payload = event.get("payload") or {}
+    kind = payload.get("kind", "unknown")
+    bid = ask = bid_size = ask_size = trade_price = trade_size = None
+    side = book_price = book_delta = None
+    if kind == "quote":
+        bid = _f(payload.get("bid"))
+        ask = _f(payload.get("ask"))
+        bid_size = _f(payload.get("bid_size"))
+        ask_size = _f(payload.get("ask_size"))
+    elif kind == "trade":
+        trade_price = _f(payload.get("price"))
+        trade_size = _f(payload.get("size"))
+    elif kind == "book_delta":
+        side = payload.get("side")
+        book_price = _f(payload.get("price"))
+        book_delta = _f(payload.get("delta"))
+    return TickRow(
+        event_ts=event["event_ts"],
+        sequence_no=int(event["sequence_no"]),
+        kind=kind,
+        bid=bid,
+        ask=ask,
+        bid_size=bid_size,
+        ask_size=ask_size,
+        trade_price=trade_price,
+        trade_size=trade_size,
+        side=side,
+        book_price=book_price,
+        book_delta=book_delta,
+    )
+
+
 _SIGNAL_TYPES = (
     "p_bid",
     "p_ask",
@@ -48,6 +111,7 @@ _SIGNAL_TYPES = (
     "kyle_lambda",
     "amihud",
 )
+
 
 _MARKET_LIST_SQL = """
 SELECT
@@ -182,7 +246,7 @@ async def _fetch_recent_ticks(
 ) -> list[dict[str, Any]]:
     sql = """
         SELECT event_ts, sequence_no, kind, bid, ask,
-               bid_size, ask_size, trade_price, trade_size
+               bid_size, ask_size, trade_price, trade_size, payload
         FROM ticks
         WHERE market_id = $1
         ORDER BY event_ts DESC, sequence_no DESC
@@ -250,20 +314,7 @@ async def get_market(
         )
         for b in book_rows
     ]
-    ticks = [
-        TickRow(
-            event_ts=t["event_ts"],
-            sequence_no=int(t["sequence_no"]),
-            kind=t["kind"],
-            bid=float(t["bid"]) if t["bid"] is not None else None,
-            ask=float(t["ask"]) if t["ask"] is not None else None,
-            bid_size=float(t["bid_size"]) if t["bid_size"] is not None else None,
-            ask_size=float(t["ask_size"]) if t["ask_size"] is not None else None,
-            trade_price=float(t["trade_price"]) if t["trade_price"] is not None else None,
-            trade_size=float(t["trade_size"]) if t["trade_size"] is not None else None,
-        )
-        for t in tick_rows
-    ]
+    ticks = [_tick_row_from_db(t) for t in tick_rows]
 
     return MarketDetail(
         id=UUID(str(row["id"])),
@@ -328,6 +379,7 @@ async def ws_market_ticks(
     websocket: WebSocket,
     api_key: str | None = Query(None),
     hub: EventHub = Depends(get_hub),
+    pool: asyncpg.Pool = Depends(get_pool),
 ) -> None:
     """Live tick feed for a single market from the Redis EventHub."""
     if not _ws_authorized(websocket, api_key):
@@ -335,13 +387,25 @@ async def ws_market_ticks(
         return
 
     await websocket.accept()
+
+    # Seed the client with recent DB history (newest first).
+    history = await _fetch_recent_ticks(pool, market_id, limit=50)
+    for row in history:
+        tick = _tick_row_from_db(row)
+        await websocket.send_json(
+            {"type": "tick", "data": tick.model_dump(mode="json")}
+        )
+
     channel = f"market:{market_id}"
     q = hub.subscribe(channel)
     try:
         while True:
             try:
                 event = await asyncio.wait_for(q.get(), timeout=30.0)
-                await websocket.send_json({"type": "tick", "data": event})
+                tick = _tick_row_from_canonical(event)
+                await websocket.send_json(
+                    {"type": "tick", "data": tick.model_dump(mode="json")}
+                )
             except TimeoutError:
                 await websocket.send_json({"type": "ping"})
     except (WebSocketDisconnect, RuntimeError):

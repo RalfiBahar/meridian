@@ -36,8 +36,8 @@ function BookTable({ levels }: { levels: BookLevel[] }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
-                <tr key={r.level}>
+              {rows.map((r, i) => (
+                <tr key={`${label}-${r.side}-${r.level}-${r.price}-${i}`}>
                   <td>{r.level}</td>
                   <td style={{ color, fontVariantNumeric: "tabular-nums" }}>{pct(r.price)}</td>
                   <td style={{ fontVariantNumeric: "tabular-nums" }}>{r.size}</td>

@@ -9,6 +9,33 @@ function pct(v: number | null | undefined): string {
   return `${(v * 100).toFixed(2)}¢`;
 }
 
+function fmtDelta(v: number | null | undefined): string {
+  if (v == null) return "—";
+  const sign = v > 0 ? "+" : "";
+  return `${sign}${v.toFixed(0)}`;
+}
+
+function tickCells(t: TickRow): { side: string; price: string; size: string } {
+  if (t.kind === "book_delta") {
+    return {
+      side: t.side ?? "—",
+      price: pct(t.book_price),
+      size: fmtDelta(t.book_delta),
+    };
+  }
+  if (t.kind === "trade") {
+    return { side: "—", price: pct(t.trade_price), size: t.trade_size?.toFixed(0) ?? "—" };
+  }
+  if (t.kind === "quote") {
+    return {
+      side: "—",
+      price: `${pct(t.bid)} / ${pct(t.ask)}`,
+      size: `${t.bid_size?.toFixed(0) ?? "—"} / ${t.ask_size?.toFixed(0) ?? "—"}`,
+    };
+  }
+  return { side: "—", price: "—", size: "—" };
+}
+
 const MAX_TICKS = 200;
 
 interface Props {
@@ -20,7 +47,7 @@ export default function MarketDetailClient({ initialDetail }: Props) {
   const [latestEvent, setLatestEvent] = useState<Record<string, unknown> | null>(null);
 
   const { status: wsStatus } = useWs({
-    path: `/ws/markets/${initialDetail.id}`,
+    path: `/api/v1/ws/markets/${initialDetail.id}`,
     onMessage: (ev: WsEvent) => {
       if (ev.type === "tick") {
         setLatestEvent(ev.data);
@@ -78,37 +105,35 @@ export default function MarketDetailClient({ initialDetail }: Props) {
               <tr>
                 <th>Time</th>
                 <th>Kind</th>
-                <th>Bid</th>
-                <th>Ask</th>
-                <th>Trade</th>
-                <th>Size</th>
+                <th>Side</th>
+                <th>Price</th>
+                <th>Δ Size</th>
               </tr>
             </thead>
             <tbody>
-              {ticks.map((t, i) => (
-                <tr key={i} style={i === 0 ? { background: "rgba(59,130,246,0.08)" } : {}}>
+              {ticks.map((t, i) => {
+                const cells = tickCells(t);
+                return (
+                <tr key={`${t.sequence_no}-${i}`} style={i === 0 ? { background: "rgba(59,130,246,0.08)" } : {}}>
                   <td style={{ color: "var(--muted)" }}>
                     {new Date(t.event_ts).toLocaleTimeString()}
                   </td>
                   <td>
-                    <span className={`badge ${t.kind === "trade" ? "badge-yellow" : ""}`}>
+                    <span className={`badge ${t.kind === "trade" ? "badge-yellow" : t.kind === "book_delta" ? "badge-green" : ""}`}>
                       {t.kind}
                     </span>
                   </td>
-                  <td style={{ color: "var(--green)", fontVariantNumeric: "tabular-nums" }}>
-                    {pct(t.bid)}
-                  </td>
-                  <td style={{ color: "var(--red)", fontVariantNumeric: "tabular-nums" }}>
-                    {pct(t.ask)}
-                  </td>
-                  <td style={{ fontVariantNumeric: "tabular-nums" }}>{pct(t.trade_price)}</td>
-                  <td style={{ color: "var(--muted)" }}>{t.trade_size ?? "—"}</td>
+                  <td style={{ color: "var(--muted)" }}>{cells.side}</td>
+                  <td style={{ fontVariantNumeric: "tabular-nums" }}>{cells.price}</td>
+                  <td style={{ color: "var(--muted)", fontVariantNumeric: "tabular-nums" }}>{cells.size}</td>
                 </tr>
-              ))}
+              );})}
               {ticks.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="empty-state">
-                    Waiting for ticks…
+                  <td colSpan={5} className="empty-state">
+                    {wsStatus === "open"
+                      ? "No tick activity for this market yet — try KXHIGHNY-26JUN19-B83.5 from the scanner."
+                      : "Waiting for ticks…"}
                   </td>
                 </tr>
               )}

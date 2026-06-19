@@ -6,7 +6,7 @@ import type { WsEvent } from "@/types/api";
 type WsStatus = "connecting" | "open" | "closed" | "error";
 
 interface UseWsOptions {
-  /** Path relative to the WS base URL, e.g. "/ws/markets" */
+  /** Path relative to the WS base URL, e.g. "/api/v1/ws/markets" */
   path: string;
   /** Called for each inbound message */
   onMessage: (event: WsEvent) => void;

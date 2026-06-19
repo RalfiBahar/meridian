@@ -72,8 +72,8 @@ export default function MarketScannerClient({ initialMarkets, initialTotal, stat
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
   const wsPath = category
-    ? `/ws/markets?status=${status}&category=${encodeURIComponent(category)}`
-    : `/ws/markets?status=${status}`;
+    ? `/api/v1/ws/markets?status=${status}&category=${encodeURIComponent(category)}`
+    : `/api/v1/ws/markets?status=${status}`;
 
   const { status: wsStatus } = useWs({
     path: wsPath,
