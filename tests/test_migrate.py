@@ -20,6 +20,12 @@ def test_discover_finds_initial_schema() -> None:
     assert migrations[0].version == "0001_initial_schema"
 
 
+def test_discover_raises_on_missing_directory(tmp_path: Path) -> None:
+    """discover() raises MigrationError when the path is not a directory."""
+    with pytest.raises(MigrationError, match="not found"):
+        discover(tmp_path / "nonexistent")
+
+
 @pytest.mark.integration
 async def test_apply_pending_creates_and_seeds_schema() -> None:
     settings = Settings()

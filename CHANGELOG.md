@@ -36,7 +36,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - `tests/test_api.py` (+4): `ws_arb_sends_snapshot`, `ws_arb_auth_rejected`
     (exercises arb WS snapshot loop — `api/routes/arb.py` now 100%);
     `_next_kxfed_date` (row found and not found)
-- Overall unit coverage improves from 91% → 94% (390 tests passing)
+  - `tests/test_migrate.py` (+1): `discover()` error path for missing
+    migrations directory (`migrate.py` line 47)
+  - `tests/test_logging.py` (new, 4 tests): `configure_logging` dev + prod
+    paths and `get_logger` with/without name; `logging.py` now 100%
+  - `tests/test_bus_redis.py` (new, 2 tests): `create_client` factory and
+    `client_context` async context manager; `bus/redis.py` now 100%
+- Overall unit coverage improves from 91% → 95% (397 tests passing)
 
 ### Added
 - `tests/test_ingest_reconnect.py` — 12 unit tests for the shared
