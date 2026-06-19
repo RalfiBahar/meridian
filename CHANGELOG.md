@@ -19,7 +19,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   now pass with zero warnings
 
 ### Added
-- 25 new unit tests covering previously-uncovered DB interaction paths:
+- 29 new unit tests covering previously-uncovered DB interaction paths:
   - `tests/test_analytics_signals.py` (+8): `run_signal_sweep` (zero markets,
     skip on no-quote, count processed), `_open_market_ids` (no category, with
     category), `_write_signals` (all-None skips DB, non-None calls executemany),
@@ -33,7 +33,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `_trade_ticks`, `_open_market_ids`, `_write_signals` (with/without data),
     `compute_microstructure`, `run_microstructure_sweep` (specific market, all
     markets, write_signals path); `microstructure.py` now at 95%
-- Overall unit coverage improves from 91% → 94% (386 tests passing)
+  - `tests/test_api.py` (+4): `ws_arb_sends_snapshot`, `ws_arb_auth_rejected`
+    (exercises arb WS snapshot loop — `api/routes/arb.py` now 100%);
+    `_next_kxfed_date` (row found and not found)
+- Overall unit coverage improves from 91% → 94% (390 tests passing)
 
 ### Added
 - `tests/test_ingest_reconnect.py` — 12 unit tests for the shared

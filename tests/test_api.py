@@ -1015,3 +1015,84 @@ def test_ws_market_ticks_sends_history(mock_hub: EventHub) -> None:
     assert data["data"]["kind"] == "quote"
     assert data["data"]["bid"] == pytest.approx(0.44)
     assert data["data"]["ask"] == pytest.approx(0.46)
+
+
+# ---------------------------------------------------------------------------
+# Arb WebSocket endpoint
+# ---------------------------------------------------------------------------
+
+
+def test_ws_arb_sends_snapshot(sync_app: TestClient) -> None:
+    """WS /ws/arb sends an arb_snapshot frame immediately on connect."""
+    with sync_app.websocket_connect("/api/v1/ws/arb") as ws:
+        data = ws.receive_json()
+    assert data["type"] == "arb_snapshot"
+    assert "data" in data
+    assert "partition_violations" in data["data"]
+    assert "cross_venue_divergences" in data["data"]
+    assert data["data"]["partition_violations"] == []
+    assert data["data"]["cross_venue_divergences"] == []
+
+
+def test_ws_arb_auth_rejected(mock_hub: EventHub, monkeypatch: pytest.MonkeyPatch) -> None:
+    """WS /ws/arb rejects with code 4003 when API key is wrong."""
+    monkeypatch.setenv("MERIDIAN_API_KEYS", "secret123")
+
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    mock_pool_empty = _MockPool([], val=0)
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: mock_pool_empty
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+
+    client = TestClient(app)
+    with (
+        pytest.raises(WebSocketDisconnect) as exc_info,
+        client.websocket_connect("/api/v1/ws/arb"),
+    ):
+        pass
+    assert exc_info.value.code == 4003
+
+
+# ---------------------------------------------------------------------------
+# fedwatch._next_kxfed_date direct unit test
+# ---------------------------------------------------------------------------
+
+
+async def test_next_kxfed_date_returns_date_when_row_found() -> None:
+    """_next_kxfed_date returns the fomc_date from the first matching market row."""
+    from datetime import date
+
+    from meridian.api.routes.fedwatch import _next_kxfed_date
+
+    expected = date(2026, 7, 30)
+
+    class _Conn:
+        async def fetchrow(self, query: str, *args: object) -> dict[str, Any] | None:
+            return {"fomc_date": expected}
+
+    class _Pool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _Conn()
+
+    result = await _next_kxfed_date(_Pool())  # type: ignore[arg-type]
+    assert result == expected
+
+
+async def test_next_kxfed_date_returns_none_when_no_row() -> None:
+    """_next_kxfed_date returns None when no open KXFED markets exist."""
+    from meridian.api.routes.fedwatch import _next_kxfed_date
+
+    class _Conn:
+        async def fetchrow(self, query: str, *args: object) -> None:
+            return None
+
+    class _Pool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _Conn()
+
+    result = await _next_kxfed_date(_Pool())  # type: ignore[arg-type]
+    assert result is None
