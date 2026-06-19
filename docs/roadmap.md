@@ -277,7 +277,7 @@ implied probabilities and analytics from production Kalshi (and
 Polymarket) data.
 
 **Resume bullet**: *Built a real-time "quant terminal" frontend (Next.js
-+ WebSocket) visualizing implied probability curves, calibration drift,
+and WebSocket) visualizing implied probability curves, calibration drift,
 arbitrage opportunities, and Fed-rate distributions over a streaming
 backend pipeline.*
 

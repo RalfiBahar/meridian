@@ -292,7 +292,7 @@ flyctl deploy --config fly.toml
   - `src/app/markets/[id]/page.tsx` — server-rendered market deep view:
     signals grid, L2 book (bid/ask columns), recent ticks table
   - `src/app/arb/page.tsx` — server-rendered arb monitor: partition violations
-    + cross-venue divergences with severity badges
+    and cross-venue divergences with severity badges
   - `src/app/calibration/page.tsx` — server-rendered calibration dashboard:
     Brier/log-loss metrics, bar reliability chart, bin-level table
   - `src/app/fedwatch/page.tsx` — server-rendered Fed-rate panel: Kalshi vs
