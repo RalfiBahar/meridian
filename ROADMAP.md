@@ -12,14 +12,14 @@ See `docs/roadmap.md` for the full narrative with resume bullets and concepts ta
 | 0 | Foundations: repo, Docker stack, CI, healthcheck | ✓ Done |
 | 1a | Canonical event schema + SQL migrations | ✓ Done |
 | 1b | Kalshi REST client + RSA-PSS auth | ✓ Done |
-| 1c | Kalshi WebSocket ingestion worker | ~75% (1c.3 pending) |
+| 1c | Kalshi WebSocket ingestion worker | ✓ Done |
 | 1d | Polymarket ingestion + Prometheus/Grafana | ✓ Done |
 | 2 | Implied probability + calibration engine | ✓ Done |
 | 3 | Cross-market no-arb consistency engine | ✓ Done |
 | 4 | Microstructure analytics + execution simulator | ✓ Done |
 | 5 | Implied Fed-rate distribution + event-response model | ✓ Done |
 | 6 | Research framework + portfolio optimizer | ✓ Done |
-| 7 | Quant Terminal frontend + production polish | Planned |
+| 7 | Quant Terminal frontend + production polish | ✓ Done |
 
 ---
 
@@ -56,7 +56,7 @@ production Fed funds futures data.
 
 ---
 
-## Phase 1c — Kalshi WebSocket ingestion worker (~75%)
+## Phase 1c — Kalshi WebSocket ingestion worker ✓
 
 ### 1c.1 ✓
 `KalshiWebSocketClient` + `normalize_kalshi_message()`. Read-only WS tap.
@@ -67,14 +67,14 @@ production Fed funds futures data.
 Full persist pipeline with idempotent writes. Migration 0002 adds `book_delta`
 kind, Kalshi-native `yes`/`no` book sides, NUMERIC size columns.
 
-### 1c.3 — Pending
+### 1c.3 ✓
 - Long-running ingest worker (no fixed `seconds` timeout)
 - Reconnect with exponential backoff
 - Redis Streams publishing (`XADD kalshi.events`)
 - `meridian ingest kalshi --tickers ...` CLI command
 - REST-driven backfill to enrich pending `markets` rows
 
-**Deliverable (full 1c)**: `meridian ingest kalshi --tickers KXFED-26JUN-T3.75`
+**Deliverable**: `meridian ingest kalshi --tickers KXFED-26JUN-T3.75`
 runs continuously, filling `ticks`, `book_snapshots`, `signals` from live data.
 
 ---

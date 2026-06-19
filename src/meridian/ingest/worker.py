@@ -7,18 +7,16 @@ Streams publishing, and background REST enrichment for new markets.
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import random
 from typing import Any
 from uuid import UUID
 
 import asyncpg
 import redis.asyncio as aioredis
-from websockets.exceptions import ConnectionClosedOK
 
 from meridian.config import Settings
 from meridian.events import CanonicalEvent
 from meridian.ingest.gap import GapDetector
+from meridian.ingest.reconnect import run_with_reconnect
 from meridian.ingest.registry import MarketRegistry
 from meridian.ingest.stats import IngestStats
 from meridian.ingest.writer import TickWriter
@@ -31,14 +29,6 @@ from meridian.metrics import (
     ingest_lag_seconds,
     ingest_reconnects_total,
 )
-
-_BACKOFF_INITIAL = 1.0
-_BACKOFF_MAX = 60.0
-_BACKOFF_JITTER = 0.20
-
-
-async def _wait_for_event(event: asyncio.Event) -> None:
-    await event.wait()
 
 
 class KalshiIngestWorker:
@@ -66,101 +56,32 @@ class KalshiIngestWorker:
     async def run(self, *, stop_event: asyncio.Event | None = None) -> IngestStats:
         """Run indefinitely, reconnecting with exponential backoff on error.
 
-        Returns when `stop_event` is set (or the task is cancelled). On a
-        clean WS close from the server, reconnects immediately and resets
-        the backoff delay.
+        Returns when `stop_event` is set (or the task is cancelled).
         """
-        delay = _BACKOFF_INITIAL
-        while True:
-            if stop_event is not None and stop_event.is_set():
-                break
-            try:
-                await self._run_connection(stop_event)
-            except asyncio.CancelledError:
-                raise
-            except ConnectionClosedOK:
-                # Server closed cleanly (WS code 1000) before we could
-                # complete the subscribe or read messages — reconnect at once.
-                if stop_event is not None and stop_event.is_set():
-                    break
-                self._stats.reconnects += 1
-                ingest_reconnects_total.labels(venue="kalshi").inc()
-                delay = _BACKOFF_INITIAL
-                continue
-            except Exception as exc:
-                self._log.warning(
-                    "ingest.reconnecting",
-                    error=str(exc),
-                    delay=round(delay, 2),
-                )
-                jitter = delay * random.uniform(-_BACKOFF_JITTER, _BACKOFF_JITTER)
-                await asyncio.sleep(delay + jitter)
-                delay = min(delay * 2, _BACKOFF_MAX)
-                self._stats.reconnects += 1
-                ingest_reconnects_total.labels(venue="kalshi").inc()
-                continue
-
-            # _run_connection returned normally: either stop_event fired or the
-            # server closed the connection cleanly.
-            if stop_event is not None and stop_event.is_set():
-                break
-            # Server-initiated close → reconnect immediately, reset backoff.
-            self._stats.reconnects += 1
-            ingest_reconnects_total.labels(venue="kalshi").inc()
-            delay = _BACKOFF_INITIAL
-
+        await run_with_reconnect(
+            connect=self._connect,
+            handle_one=self._handle,
+            stats=self._stats,
+            log=self._log,
+            stop_event=stop_event,
+            on_reconnect=lambda: ingest_reconnects_total.labels(venue="kalshi").inc(),
+        )
         pending = list(self._bg_tasks)
         if pending:
             await asyncio.gather(*pending, return_exceptions=True)
-
         self._stats.new_markets = self._registry.new_market_count
         self._stats.gaps_detected = self._gaps.gaps_detected
         return self._stats
 
-    async def _run_connection(self, stop_event: asyncio.Event | None) -> None:
+    def _connect(self) -> KalshiWebSocketClient:
         self._log.info(
             "ingest.connecting",
             tickers=len(self._tickers),
             channels=list(self._channels),
         )
-        async with KalshiWebSocketClient(
+        return KalshiWebSocketClient(
             self._settings, tickers=self._tickers, channels=self._channels
-        ) as client:
-            drain: asyncio.Task[None] = asyncio.create_task(self._drain_stream(client))
-
-            if stop_event is None:
-                try:
-                    await drain
-                except asyncio.CancelledError:
-                    drain.cancel()
-                    raise
-                return
-
-            stop: asyncio.Task[None] = asyncio.create_task(_wait_for_event(stop_event))
-            try:
-                await asyncio.wait({drain, stop}, return_when=asyncio.FIRST_COMPLETED)
-            except asyncio.CancelledError:
-                drain.cancel()
-                stop.cancel()
-                raise
-
-            for task in (drain, stop):
-                if not task.done():
-                    task.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await task
-
-            if drain.done() and not drain.cancelled():
-                exc = drain.exception()
-                if exc is not None:
-                    raise exc
-
-    async def _drain_stream(self, client: KalshiWebSocketClient) -> None:
-        try:
-            async for raw in client.stream():
-                await self._handle(raw)
-        except ConnectionClosedOK:
-            pass  # server closed cleanly; run() will reconnect
+        )
 
     async def _handle(self, raw: dict[str, Any]) -> None:
         self._stats.received += 1

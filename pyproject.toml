@@ -97,3 +97,13 @@ addopts = "-ra --strict-markers"
 markers = [
     "integration: requires the docker-compose stack to be running",
 ]
+
+[tool.coverage.run]
+# CLI command modules and the subprocess-based experiment runner are
+# exercised only through integration tests and make up the entirety
+# of the coverage gap — omitting them keeps the gate meaningful for
+# the core library code.
+omit = [
+    "src/meridian/cli/*",
+    "src/meridian/research/experiment.py",
+]

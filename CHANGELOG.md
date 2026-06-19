@@ -7,7 +7,54 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-*Phase 7 complete.*
+*All phases complete. Ongoing cross-cutting tasks resolved.*
+
+---
+
+## Cross-cutting — test coverage + CI gate + refactor — 2026-06-19
+
+### Added
+- `tests/conftest.py` — `MockConn` and `MockPool` classes + `mock_conn` /
+  `mock_pool` pytest fixtures; shared asyncpg stand-ins that record every
+  `execute` / `executemany` / `fetchrow` call so unit tests can assert on SQL
+  without a real database
+- `tests/test_ingest_writer.py` — 17 unit tests covering all 5 event-payload
+  routes in `TickWriter.write()`: QuoteEvent (with/without sizes, ON CONFLICT
+  0 vs 1), TradeEvent (aggressor present/null), BookEvent (empty levels → 0,
+  non-empty → `executemany` + correct count), BookDeltaEvent (JSON payload
+  structure), StatusEvent (JSON payload per status value), parametrized
+  INSERT 0 1 / INSERT 0 0 idempotency
+- `tests/test_ingest_registry.py` — 10 unit tests covering `MarketRegistry`:
+  first `ensure_market` returns True + increments counter, second call hits
+  cache (no extra DB round-trip), ON CONFLICT returns False without counting,
+  conflict result still caches to avoid future DB hits, two distinct markets
+  both inserted, venue SELECT issued once then cached, missing venue raises
+  `RuntimeError`, venue code forwarded to query
+- `tests/test_ingest_gap.py` — 15 unit tests covering `GapDetector.observe()`:
+  first message no gap, sequential no gap, independent sids, forward gap
+  returns size + emits signal row, gap of 1 detected, multiple gaps counted,
+  duplicate seq returns 0, out-of-order returns 0, missing sid/seq/non-int
+  sid/empty message all return 0, no DB call on no-gap sequences, signal
+  metadata contains sid/last_seq/new_seq
+- `pyproject.toml` — `[tool.coverage.run]` omit config for `src/meridian/cli/*`
+  and `src/meridian/research/experiment.py` (Click wrappers and subprocess
+  runner exercised only through integration tests)
+- `Makefile` — `make docs` target: `npx markdownlint-cli "docs/**/*.md" "*.md"`
+
+### Changed
+- `src/meridian/ingest/worker.py` — `KalshiIngestWorker.run()` now delegates
+  to `run_with_reconnect()` from `ingest/reconnect.py`, matching
+  `PolymarketIngestWorker`; removed duplicate backoff constants
+  (`_BACKOFF_INITIAL`, `_BACKOFF_MAX`, `_BACKOFF_JITTER`), `_wait_for_event`,
+  `_run_connection`, and `_drain_stream`; added `_connect()` method;
+  reconnect Prometheus counter wired via `on_reconnect` callback
+- `tests/test_ingest_worker.py` — updated backoff monkeypatch targets from
+  `meridian.ingest.worker.*` to `meridian.ingest.reconnect.*`
+- `.github/workflows/ci.yml` — unit-tests job now runs
+  `pytest --cov=src/meridian --cov-report=term-missing --cov-fail-under=80`
+  (83% measured after CLI omit)
+- `ROADMAP.md` — Phase 1c and Phase 7 status updated to ✓ Done
+- `TASKS.md` — all cross-cutting ongoing items marked `[x]`
 
 ---
 

@@ -175,15 +175,15 @@ These complete the Phase 1c deliverable.
 
 ## Ongoing / cross-cutting
 
-- [ ] Increase test coverage for `ingest/writer.py` (currently untested in
+- [x] Increase test coverage for `ingest/writer.py` (currently untested in
   unit layer — requires a test DB fixture or a mock pool)
-- [ ] Add `conftest.py` fixture for a mock `asyncpg.Pool` to enable unit
+- [x] Add `conftest.py` fixture for a mock `asyncpg.Pool` to enable unit
   testing of `TickWriter`, `MarketRegistry`, `GapDetector`
-- [ ] Add `pytest-cov` minimum-coverage gate (e.g., 80%) to CI
-- [ ] Add `make docs` target that lints docs with `markdownlint` or `vale`
-- [ ] Refactor `KalshiIngestWorker.run()` to use the shared
+- [x] Add `pytest-cov` minimum-coverage gate (e.g., 80%) to CI
+- [x] Add `make docs` target that lints docs with `markdownlint` or `vale`
+- [x] Refactor `KalshiIngestWorker.run()` to use the shared
   `ingest/reconnect.py:run_with_reconnect()` helper extracted during Phase
   1d (currently only `PolymarketIngestWorker` uses it; left Kalshi's
   tested 1c.3 reconnect loop untouched to avoid regression risk in this
   pass — the logic is otherwise identical)
-- [ ] Document Polymarket auth mechanism in `docs/polymarket.md` once researched
+- [x] Document Polymarket auth mechanism in `docs/polymarket.md` once researched

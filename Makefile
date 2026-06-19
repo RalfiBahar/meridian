@@ -1,4 +1,4 @@
-.PHONY: help install up down reset logs ps health migrate test test-all lint format typecheck check
+.PHONY: help install up down reset logs ps health migrate test test-all lint format typecheck check docs
 
 help:
 	@echo "Meridian development commands:"
@@ -16,6 +16,7 @@ help:
 	@echo "  make format      ruff format"
 	@echo "  make typecheck   mypy"
 	@echo "  make check       lint + typecheck + tests"
+	@echo "  make docs        lint markdown docs with markdownlint (requires npm)"
 
 install:
 	uv sync
@@ -57,3 +58,6 @@ typecheck:
 	uv run mypy
 
 check: lint typecheck test
+
+docs:
+	npx markdownlint-cli "docs/**/*.md" "*.md"

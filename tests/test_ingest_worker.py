@@ -240,8 +240,8 @@ async def test_worker_backoff_on_connection_error(
         lambda self, method, path: {},
     )
     # Speed up the backoff so the test completes in < 1 s.
-    monkeypatch.setattr("meridian.ingest.worker._BACKOFF_INITIAL", 0.01)
-    monkeypatch.setattr("meridian.ingest.worker._BACKOFF_MAX", 0.05)
+    monkeypatch.setattr("meridian.ingest.reconnect._BACKOFF_INITIAL", 0.01)
+    monkeypatch.setattr("meridian.ingest.reconnect._BACKOFF_MAX", 0.05)
 
     stop_event = asyncio.Event()
     worker = KalshiIngestWorker(
