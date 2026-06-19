@@ -432,6 +432,84 @@ async def test_rate_limit_exempt_for_health(mock_pool: _MockPool, mock_hub: Even
 
 
 # ---------------------------------------------------------------------------
+# deps.py: getter function unit tests + lifespan smoke test
+# ---------------------------------------------------------------------------
+
+
+async def test_deps_getters_return_state() -> None:
+    """get_pool / get_redis / get_hub return whatever is stored in _state."""
+    import meridian.api.deps as deps_mod
+
+    sentinel_pool: Any = object()
+    sentinel_redis: Any = object()
+    sentinel_hub: Any = object()
+
+    # Stash originals so we can restore after the test.
+    original: dict[str, Any] = {}
+    for attr in ("pool", "redis", "hub"):
+        try:
+            original[attr] = getattr(deps_mod._state, attr)  # type: ignore[attr-defined]
+        except AttributeError:
+            original[attr] = None
+
+    try:
+        deps_mod._state.pool = sentinel_pool  # type: ignore[attr-defined]
+        deps_mod._state.redis = sentinel_redis  # type: ignore[attr-defined]
+        deps_mod._state.hub = sentinel_hub  # type: ignore[attr-defined]
+
+        assert deps_mod.get_pool() is sentinel_pool
+        assert deps_mod.get_redis() is sentinel_redis
+        assert deps_mod.get_hub() is sentinel_hub
+    finally:
+        for attr, val in original.items():
+            if val is None:
+                deps_mod._state.__dict__.pop(attr, None)
+            else:
+                setattr(deps_mod._state, attr, val)
+
+
+async def test_deps_lifespan_initialises_and_cleans_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """lifespan() sets _state, runs the hub task, and cleans up on exit."""
+    from unittest.mock import AsyncMock, MagicMock
+
+    import meridian.api.deps as deps_mod
+
+    mock_pool = MagicMock()
+    mock_pool.close = AsyncMock()
+
+    ready_to_cancel = asyncio.Event()
+
+    class _MockRedis:
+        async def xread(self, **kwargs: Any) -> list[Any]:
+            ready_to_cancel.set()
+            # Block until cancelled.
+            await asyncio.sleep(3600)
+            return []
+
+        async def aclose(self) -> None:
+            pass
+
+    mock_redis = _MockRedis()
+
+    monkeypatch.setattr(deps_mod, "create_pool", AsyncMock(return_value=mock_pool))
+    monkeypatch.setattr(deps_mod, "create_client", MagicMock(return_value=mock_redis))
+
+    app_stub: Any = MagicMock()
+    async with deps_mod.lifespan(app_stub):
+        # Give the hub task a tick to start running.
+        await ready_to_cancel.wait()
+        # While inside the lifespan, _state is populated.
+        assert deps_mod._state.pool is mock_pool
+        assert deps_mod._state.redis is mock_redis
+        assert isinstance(deps_mod._state.hub, EventHub)
+
+    # After exit, pool.close() must have been called.
+    mock_pool.close.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
 # EventHub unit tests
 # ---------------------------------------------------------------------------
 
