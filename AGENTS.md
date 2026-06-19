@@ -5,6 +5,16 @@ It documents invariants, conventions, and where to find things.
 
 ---
 
+## Agent session protocol (READ FIRST)
+
+1. Run `bash scripts/check-completion.sh` (or `--code` if Docker is down).
+2. **Exit code 0** → reply **`MERIDIAN COMPLETE — stopping.`** and do not edit code or start new work.
+3. **Exit code 1** → open [`COMPLETION.md`](COMPLETION.md), work the **first unchecked goal** only, re-run the checker before ending.
+
+Implementation phases 0–10 are code-complete. Remaining work is **operational** (docs, bugs, seed data, ingest time). See `COMPLETION.md` for the full gate list and stop condition.
+
+---
+
 ## What this project is
 
 Meridian is a **prediction-market research engine** — a read-only analytics
@@ -257,3 +267,5 @@ fly.toml     Backend Fly.io config
 ```
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.
+
+**Operational completion (agent loop stop):** [`COMPLETION.md`](COMPLETION.md) + `bash scripts/check-completion.sh`.

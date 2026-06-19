@@ -10,6 +10,7 @@ The trained tagger can classify new events without re-querying the signals table
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -198,15 +199,16 @@ async def write_nlp_signals(
     rows = [
         (
             now,
-            r.event_id,
+            None,  # market_id: NLP signals are per-event, not per-market
             "market_moving_prob",
             r.market_moving_prob,
-            {
+            json.dumps({
+                "event_id": str(r.event_id),
                 "label": r.label,
                 "category": r.category,
                 "is_market_moving": r.is_market_moving,
                 "top_tokens": r.top_tokens,
-            },
+            }),
         )
         for r in results
     ]
@@ -214,8 +216,8 @@ async def write_nlp_signals(
         await conn.executemany(
             """
             INSERT INTO signals
-                (signal_ts, market_id, signal_type, value, metadata)
-            VALUES ($1, $2, $3, $4, $5)
+                (event_ts, market_id, signal_type, value, metadata, ingest_ts)
+            VALUES ($1, $2, $3, $4, $5::jsonb, $1)
             ON CONFLICT DO NOTHING
             """,
             rows,
@@ -275,34 +277,44 @@ async def _fetch_training_rows(
 
         rows: list[dict[str, Any]] = []
         post_td = timedelta(hours=post_window_hours)
+        pre_td = timedelta(hours=post_window_hours)
         for evt in events:
             occurred = evt["occurred_at"]
             cat = evt["category"]
+            pre_start = occurred - pre_td
             post_end = occurred + post_td
             # Compute mean price delta across markets in category over post window.
             delta_rows = await conn.fetch(
                 """
-                SELECT AVG(s.value) - pre.pre_mean AS delta
-                FROM   signals s
-                CROSS JOIN LATERAL (
-                    SELECT AVG(sp.value) AS pre_mean
-                    FROM   signals sp
-                    WHERE  sp.market_id = s.market_id
-                      AND  sp.signal_type = 'p_mid'
-                      AND  sp.signal_ts BETWEEN $3 - INTERVAL '1 hour' AND $3
-                ) pre
-                WHERE  s.signal_type = 'p_mid'
-                  AND  s.signal_ts BETWEEN $3 AND $4
-                  AND  s.market_id IN (
-                      SELECT id FROM markets
-                      WHERE  category = $2
-                        AND  settled_value IS NULL
-                  )
-                GROUP BY s.market_id
-                HAVING COUNT(*) > 0 AND pre.pre_mean IS NOT NULL
+                WITH mkt AS (
+                    SELECT id FROM markets
+                    WHERE  category = $1
+                      AND  settled_value IS NULL
+                ),
+                pre_avg AS (
+                    SELECT market_id, AVG(value) AS pre_mean
+                    FROM   signals
+                    WHERE  signal_type = 'p_mid'
+                      AND  event_ts BETWEEN $2 AND $3
+                      AND  market_id IN (SELECT id FROM mkt)
+                    GROUP BY market_id
+                ),
+                post_avg AS (
+                    SELECT market_id, AVG(value) AS post_mean
+                    FROM   signals
+                    WHERE  signal_type = 'p_mid'
+                      AND  event_ts BETWEEN $3 AND $4
+                      AND  market_id IN (SELECT id FROM mkt)
+                    GROUP BY market_id
+                )
+                SELECT post_avg.post_mean - pre_avg.pre_mean AS delta
+                FROM   pre_avg
+                JOIN   post_avg USING (market_id)
+                WHERE  pre_avg.pre_mean IS NOT NULL
+                  AND  post_avg.post_mean IS NOT NULL
                 """,
-                None,  # unused placeholder ($1 kept consistent)
                 cat,
+                pre_start,
                 occurred,
                 post_end,
             )

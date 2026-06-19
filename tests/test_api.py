@@ -126,6 +126,32 @@ async def test_health_ok(client: httpx.AsyncClient) -> None:
     assert resp.json()["status"] == "ok"
 
 
+async def test_health_error_when_db_unavailable(mock_hub: EventHub) -> None:
+    """Health endpoint returns {"status": "error"} when the pool raises."""
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    class _BrokenPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            raise RuntimeError("DB is down")
+            yield  # type: ignore[misc]
+
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: _BrokenPool()
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),  # type: ignore[arg-type]
+        base_url="http://test",
+    ) as c:
+        resp = await c.get("/health")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "error"
+    assert "detail" in body
+
+
 # ---------------------------------------------------------------------------
 # Markets list endpoint
 # ---------------------------------------------------------------------------
@@ -301,6 +327,50 @@ async def test_calibration_404_no_data(mock_hub: EventHub) -> None:
     ) as c:
         resp = await c.get("/api/v1/calibration")
     assert resp.status_code == 404
+
+
+async def test_calibration_200_with_data(
+    mock_hub: EventHub, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Returns 200 with CalibrationResponse when resolved markets exist."""
+    from meridian.analytics.calibration import CalibrationResult, ReliabilityBin
+    from meridian.api.app import create_app
+    from meridian.api.deps import get_hub, get_pool
+
+    fake_result = CalibrationResult(
+        category="fed",
+        lookback_days=90,
+        n_markets=3,
+        n_observations=100,
+        brier_score=0.12,
+        log_loss=0.35,
+        reliability_bins=[
+            ReliabilityBin(lower=0.0, upper=0.1, mean_predicted=0.05, mean_realized=0.04, count=10)
+        ],
+        brier_after_isotonic=0.11,
+    )
+
+    async def _mock_run_calibration(*args: Any, **kwargs: Any) -> CalibrationResult:
+        return fake_result
+
+    monkeypatch.setattr("meridian.analytics.calibration.run_calibration", _mock_run_calibration)
+
+    empty_pool = _MockPool([], val=0)
+    app = create_app(lifespan=_noop_lifespan, enable_telemetry=False)
+    app.dependency_overrides[get_pool] = lambda: empty_pool
+    app.dependency_overrides[get_hub] = lambda: mock_hub
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app),  # type: ignore[arg-type]
+        base_url="http://test",
+    ) as c:
+        resp = await c.get("/api/v1/calibration?category=fed")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["category"] == "fed"
+    assert body["n_markets"] == 3
+    assert body["brier_score"] == pytest.approx(0.12)
+    assert len(body["reliability_bins"]) == 1
 
 
 # ---------------------------------------------------------------------------

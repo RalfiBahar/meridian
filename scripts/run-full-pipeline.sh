@@ -39,7 +39,7 @@ log "Analytics: regime detection"
 uv run python -m meridian.cli analytics regime --write-signals || true
 
 log "Analytics: NLP tagger"
-uv run python -m meridian.cli analytics nlp-tag --write-signals || true
+uv run python -m meridian.cli analytics nlp-tag --price-threshold 0.005 --write-signals || true
 
 log "Analytics: market maker backtest"
 uv run python -m meridian.cli analytics marketmaker KXHIGHNY-26JUN19-B83.5 --window 1 || true

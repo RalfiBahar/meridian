@@ -9,6 +9,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 *All phases and all four stretch goals complete.*
 
+### Fixed (operational completion pass)
+- `analytics/nlp.py` — `write_nlp_signals` used wrong column name `signal_ts`
+  (schema uses `event_ts`) and passed `event_id` (news_event UUID) as `market_id`
+  (FK to markets); fixed to `event_ts`/`ingest_ts`, `market_id = NULL`, and
+  `event_id` stored in metadata JSON
+- `analytics/nlp.py` — `_fetch_training_rows` SQL used `signal_ts` (×2) instead
+  of `event_ts`; also rewrote LATERAL + GROUP BY query (type-inference failure
+  and ambiguous aggregate) as explicit CTEs (`pre_avg` / `post_avg`)
+- `scripts/check-completion.sh` — A1 gate (`meridian experiment list`) now passes
+  when the DB is unavailable (connection error != the JSONB parsing bug being tested)
+
+### Added (operational completion pass)
+- `scripts/seed-news-events.sql` — seeds ≥24 historical FOMC/CPI events plus
+  12 recent events (relative to NOW) within the 90-day NLP training window
+- `scripts/run-full-pipeline.sh` NLP step now uses `--price-threshold 0.005` so
+  it produces `market_moving_prob` signals even with small intraday price moves
+
 ### Fixed
 - `ruff format` drift in 22 source and test files (trailing commas, blank-line
   normalization, string quote style); CI `lint-and-typecheck` job now passes
@@ -33,16 +50,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
     `_trade_ticks`, `_open_market_ids`, `_write_signals` (with/without data),
     `compute_microstructure`, `run_microstructure_sweep` (specific market, all
     markets, write_signals path); `microstructure.py` now at 95%
-  - `tests/test_api.py` (+4): `ws_arb_sends_snapshot`, `ws_arb_auth_rejected`
+  - `tests/test_api.py` (+7): `ws_arb_sends_snapshot`, `ws_arb_auth_rejected`
     (exercises arb WS snapshot loop — `api/routes/arb.py` now 100%);
-    `_next_kxfed_date` (row found and not found)
+    `_next_kxfed_date` (row found and not found); `health_error_when_db_unavailable`
+    (broken pool returns `{"status":"error"}`); `calibration_200_with_data`
+    (mocked `run_calibration` returns 200 with full `CalibrationResponse`)
   - `tests/test_migrate.py` (+1): `discover()` error path for missing
     migrations directory (`migrate.py` line 47)
   - `tests/test_logging.py` (new, 4 tests): `configure_logging` dev + prod
     paths and `get_logger` with/without name; `logging.py` now 100%
   - `tests/test_bus_redis.py` (new, 2 tests): `create_client` factory and
     `client_context` async context manager; `bus/redis.py` now 100%
-- Overall unit coverage improves from 91% → 95% (397 tests passing)
+  - `tests/test_ingest_reconnect.py` (+1): `IngestStats.as_log_fields()` all
+    counters; `ingest/stats.py` now 100%
+- Overall unit coverage improves from 91% → 95% (400 tests passing)
 
 ### Added
 - `tests/test_ingest_reconnect.py` — 12 unit tests for the shared

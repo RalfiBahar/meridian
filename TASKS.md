@@ -7,6 +7,17 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 
 ---
 
+## STOP — agent loop exit condition
+
+**Before any task work:** run `bash scripts/check-completion.sh`.
+
+- Exit **0** → project is operationally complete. Reply **`MERIDIAN COMPLETE — stopping.`** Do not continue.
+- Exit **1** → work items in [`COMPLETION.md`](COMPLETION.md) section **Remaining goals** (top unchecked item first).
+
+Phases 0–10 below are **code-complete**. Open operational items live only in `COMPLETION.md`.
+
+---
+
 ## Phase 1c.3 — Long-running worker + Redis Streams (DONE)
 
 These complete the Phase 1c deliverable.

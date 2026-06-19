@@ -244,7 +244,18 @@ async def list_experiments(
                 """,
                 limit,
             )
-    return [dict(r) for r in rows]
+    out: list[dict[str, Any]] = []
+    for r in rows:
+        row = dict(r)
+        for key in ("metrics", "params", "data_window"):
+            val = row.get(key)
+            if isinstance(val, str):
+                try:
+                    row[key] = json.loads(val)
+                except json.JSONDecodeError:
+                    row[key] = {}
+        out.append(row)
+    return out
 
 
 # ---------------------------------------------------------------------------

@@ -1,7 +1,7 @@
 # Meridian
 
 A prediction-market research engine. Ingests live order-book data from Kalshi
-(primary) and Polymarket (planned), extracts implied probabilities, scores
+(primary) and Polymarket, extracts implied probabilities, scores
 their calibration against realized outcomes, detects no-arbitrage violations
 across related markets, and surfaces microstructure signals — over a
 streaming event-driven pipeline.
@@ -13,22 +13,24 @@ data and computes derived signals. It does not place orders or move money.
 
 ## Status
 
-Currently in **Phase 1** of an 8-phase roadmap. See [docs/roadmap.md](docs/roadmap.md)
-for the full plan.
+**Phases 0–10 are code-complete.** Remaining work is operational (seed data, ingest time, doc sync). Agents: see [`COMPLETION.md`](COMPLETION.md) and run `bash scripts/check-completion.sh` — exit 0 means **stop**.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Foundations: repo skeleton, Docker stack, CI, healthcheck | ✓ Done |
 | 1a | Canonical event schema + SQL migrations | ✓ Done |
 | 1b | Kalshi REST client + RSA-PSS auth | ✓ Done |
-| 1c | Kalshi WebSocket ingestion worker | In progress |
-| 1d | Polymarket ingestion + Prometheus/Grafana observability | Planned |
-| 2 | Implied probability + calibration engine | Planned |
-| 3 | Cross-market no-arb consistency engine | Planned |
-| 4 | Microstructure analytics + execution simulator | Planned |
-| 5 | Implied Fed-rate distribution + event-response model | Planned |
-| 6 | Research framework + portfolio optimizer | Planned |
-| 7 | Quant Terminal frontend + production polish | Planned |
+| 1c | Kalshi WebSocket ingestion worker | ✓ Done |
+| 1d | Polymarket ingestion + Prometheus/Grafana observability | ✓ Done |
+| 2 | Implied probability + calibration engine | ✓ Done |
+| 3 | Cross-market no-arb consistency engine | ✓ Done |
+| 4 | Microstructure analytics + execution simulator | ✓ Done |
+| 5 | Implied Fed-rate distribution + event-response model | ✓ Done |
+| 6 | Research framework + portfolio optimizer | ✓ Done |
+| 7 | Quant Terminal frontend + production polish | ✓ Done |
+| 8–10 | Anomaly, regime, market maker, NLP (stretch) | ✓ Done |
+
+Full narrative: [docs/roadmap.md](docs/roadmap.md) · [ROADMAP.md](ROADMAP.md)
 
 ---
 
@@ -50,6 +52,15 @@ make health                      # verify everything is reachable
 
 If `make health` reports both Postgres+TimescaleDB and Redis as healthy,
 you are ready.
+
+**Full dev stack** (Docker ingest + Grafana + API + frontend + analytics pipeline):
+
+```sh
+bash scripts/dev-up.sh           # kill stale processes, reset volumes, boot everything
+bash scripts/check-completion.sh # agent stop condition — exit 0 means done
+```
+
+See [`COMPLETION.md`](COMPLETION.md) for remaining operational goals.
 
 For a complete first-run walkthrough including credential setup, see
 [docs/getting-started.md](docs/getting-started.md).

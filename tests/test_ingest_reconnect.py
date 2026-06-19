@@ -327,3 +327,39 @@ async def test_run_with_reconnect_stop_event_checked_at_loop_start() -> None:
         stop_event=stop,
     )
     assert connect_calls == 0
+
+
+# ---------------------------------------------------------------------------
+# IngestStats.as_log_fields
+# ---------------------------------------------------------------------------
+
+
+def test_ingest_stats_as_log_fields_returns_all_counters() -> None:
+    """as_log_fields() returns a dict with all counters."""
+    stats = IngestStats(
+        received=10,
+        normalized=8,
+        control=1,
+        rows_written=7,
+        new_markets=2,
+        gaps_detected=0,
+        reconnects=1,
+        events_published=7,
+        unknown_types={"foo": 3},
+    )
+    fields = stats.as_log_fields()
+    assert fields["received"] == 10
+    assert fields["normalized"] == 8
+    assert fields["events_published"] == 7
+    assert fields["unknown_types"] == {"foo": 3}
+    assert set(fields.keys()) == {
+        "received",
+        "normalized",
+        "control",
+        "rows_written",
+        "new_markets",
+        "gaps_detected",
+        "reconnects",
+        "events_published",
+        "unknown_types",
+    }
