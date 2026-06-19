@@ -7,7 +7,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
-*All phases and Phase 8 stretch goals complete.*
+*All phases and Phase 8 + 9 stretch goals complete.*
+
+---
+
+## Phase 9 — Simulated Market Maker — 2026-06-19
+
+### Added
+- `src/meridian/research/marketmaker.py` — event-driven market-making backtest:
+  - `MarketMakerConfig` dataclass: half_spread, base_size, max_inventory,
+    skew_threshold (all Decimal); symmetric quoting, inventory skew, suppression
+  - `Fill` dataclass: ts, side, price, size — one record per simulated fill
+  - `MarketMakerResult` dataclass: full backtest output including realized P&L,
+    MTM P&L, total P&L, fill rate, Sharpe (annualised), per-tick P&L series,
+    fill list, max inventory reached; `summary()` returns formatted report
+  - `run_mm_backtest(pool, market_id, *, config, window)` — fetches quote and
+    trade ticks from the DB; returns None when no quote ticks in window
+  - `_simulate_mm(market_id, config, window, quotes, trades)` — pure
+    event-driven simulation: merges and time-sorts quote + trade ticks; quote
+    ticks update our posted bid/ask with inventory-adjusted sizing; trade ticks
+    generate fills when they cross our posted price; FIFO realized P&L tracking
+    via `_realize_pnl`; MTM P&L from open inventory at final midprice; daily
+    P&L bucketing for Sharpe calculation
+  - `_realize_pnl(open_longs, sell_price, sell_size)` — pure FIFO P&L function;
+    closes sell_size worth of open long lots oldest-first; mutates lot list in place
+  - `_fetch_ticks(pool, market_id, since)` — fetches quote ticks (bid, ask,
+    bid_size, ask_size) and trade ticks (trade_price, trade_size, aggressor) from
+    the `ticks` hypertable; returns (quotes, trades) tuple
+- `src/meridian/cli/analytics.py`:
+  - `meridian analytics marketmaker TICKER [--half-spread DECIMAL]
+    [--base-size INT] [--max-inventory INT] [--window DAYS]` — runs backtest
+    and prints `MarketMakerResult.summary()`
+- `tests/test_research_marketmaker.py` — 17 unit tests:
+  - `_realize_pnl`: simple round-trip, partial fill, FIFO across multiple lots,
+    empty lots list
+  - `_simulate_mm`: no trades (no fills), trade lifts ask (sell fill), trade
+    hits bid (buy fill), midprice trade (no fill), round-trip P&L positive,
+    fill rate calculation, inventory suppresses buy side after max reached,
+    max_inventory_reached tracking, Sharpe None with single day of data
+  - `run_mm_backtest`: None on no quotes, result with quotes, custom config
+  - `MarketMakerResult.summary()` format
+
+### Changed
+- `TASKS.md` — Phase 9 tasks 9-a through 9-d marked `[x]`
+- `AGENTS.md` — Phase 9 status added and marketmaker.py added to source layout
 
 ---
 

@@ -79,9 +79,10 @@ src/meridian/
 │   └── regime.py         # Gaussian HMM regime detector: low/medium/high volatility (Phase 8)
 ├── research/
 │   ├── __init__.py
-│   ├── experiment.py   # Experiment runner + DB persistence (experiments table)
-│   ├── portfolio.py    # Markowitz MV optimizer: Ledoit-Wolf shrinkage, cvxpy CLARABEL
-│   └── walkforward.py  # Walk-forward evaluation harness (no look-ahead)
+│   ├── experiment.py    # Experiment runner + DB persistence (experiments table)
+│   ├── portfolio.py     # Markowitz MV optimizer: Ledoit-Wolf shrinkage, cvxpy CLARABEL
+│   ├── walkforward.py   # Walk-forward evaluation harness (no look-ahead)
+│   └── marketmaker.py  # Event-driven MM backtest: fill sim, FIFO P&L, Sharpe (Phase 9)
 └── cli/
     ├── __main__.py     # click entry point
     ├── health.py       # `health` command
@@ -206,6 +207,7 @@ make check        # lint + typecheck + unit tests
 | 6 | Research framework + portfolio optimizer | Done |
 | 7 | Quant Terminal frontend + production polish | Done |
 | 8 | Anomaly detection + regime detection (stretch goals) | Done |
+| 9 | Simulated market maker (stretch goal) | Done |
 
 ## Phase 7 layout (added 2026-06-18)
 

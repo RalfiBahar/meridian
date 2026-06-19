@@ -194,6 +194,25 @@ These implement the ROADMAP stretch goals.
 
 ---
 
+## Phase 9 — Simulated Market Maker (READY)
+
+Implements the final ROADMAP stretch goal.
+
+- [x] **9-a** `research/marketmaker.py` — event-driven market-making simulator:
+  symmetric spread around midprice, configurable half-spread / base-size /
+  max-inventory; fill simulation against historical trade ticks (a trade
+  crossing our posted bid/ask counts as a fill); inventory management (skewed
+  quoting when |inventory| > 50 % of max, one-sided quoting at limit);
+  `run_mm_backtest(pool, market_id, *, config, window)` fetches ticks from DB
+  and returns `MarketMakerResult` (realized P&L, MTM P&L, fill rate, Sharpe,
+  per-tick P&L series); `MarketMakerConfig` and `MarketMakerResult` dataclasses
+- [x] **9-b** CLI: `meridian analytics marketmaker TICKER [--half-spread DECIMAL]
+  [--base-size INT] [--max-inventory INT] [--window DAYS]`
+- [x] **9-c** Write ≥12 unit tests covering pure fill-simulation logic
+- [x] **9-d** Update CHANGELOG.md with Phase 9 changes
+
+---
+
 ## Ongoing / cross-cutting
 
 - [x] Increase test coverage for `ingest/writer.py` (currently untested in

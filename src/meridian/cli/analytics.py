@@ -526,6 +526,112 @@ async def _run_regime(
         click.echo(f"\nWrote {n} regime_state signal rows.")
 
 
+@analytics.command(name="marketmaker")
+@click.argument("ticker")
+@click.option(
+    "--half-spread",
+    default="0.01",
+    show_default=True,
+    metavar="DECIMAL",
+    help="Half-spread posted around midprice (e.g. 0.01 = 1 cent).",
+)
+@click.option(
+    "--base-size",
+    default=10,
+    show_default=True,
+    type=int,
+    help="Normal order size in contracts.",
+)
+@click.option(
+    "--max-inventory",
+    default=100,
+    show_default=True,
+    type=int,
+    help="Maximum net position; quoting suppressed at the limit.",
+)
+@click.option(
+    "--window",
+    default=7,
+    show_default=True,
+    type=int,
+    metavar="DAYS",
+    help="Historical window for the backtest.",
+)
+def marketmaker_cmd(
+    ticker: str,
+    half_spread: str,
+    base_size: int,
+    max_inventory: int,
+    window: int,
+) -> None:
+    """Run a market-making backtest against historical ticks.
+
+    TICKER is the market's external ID (Kalshi ticker or Polymarket token ID).
+
+    Posts symmetric quotes around the midprice with HALF_SPREAD on each side.
+    Fills are simulated when a historical trade crosses a posted quote.
+    Inventory management reduces size and suppresses one-sided quoting when
+    the position approaches MAX_INVENTORY.
+
+    Prints realized P&L, MTM P&L, fill rate, and annualised Sharpe.
+    """
+    asyncio.run(
+        _run_marketmaker(
+            ticker=ticker,
+            half_spread=Decimal(half_spread),
+            base_size=Decimal(str(base_size)),
+            max_inventory=Decimal(str(max_inventory)),
+            window_days=window,
+        )
+    )
+
+
+async def _run_marketmaker(
+    *,
+    ticker: str,
+    half_spread: Decimal,
+    base_size: Decimal,
+    max_inventory: Decimal,
+    window_days: int,
+) -> None:
+    from meridian.research.marketmaker import MarketMakerConfig, run_mm_backtest
+
+    settings = get_settings()
+    configure_logging(settings)
+
+    async with pool_context(settings) as pool, pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT id FROM markets WHERE external_id = $1 LIMIT 1", ticker
+        )
+    if row is None:
+        click.echo(f"Market not found: {ticker}", err=True)
+        return
+
+    market_id = UUID(str(row["id"]))
+    config = MarketMakerConfig(
+        half_spread=half_spread,
+        base_size=base_size,
+        max_inventory=max_inventory,
+    )
+
+    async with pool_context(settings) as pool:
+        result = await run_mm_backtest(
+            pool,
+            market_id,
+            config=config,
+            window=timedelta(days=window_days),
+        )
+
+    if result is None:
+        click.echo(
+            f"No quote ticks found for {ticker} in the last {window_days} days.",
+            err=True,
+        )
+        return
+
+    click.echo(result.summary())
+
+
 @analytics.command(name="event-response")
 @click.argument("event_id")
 @click.option(
