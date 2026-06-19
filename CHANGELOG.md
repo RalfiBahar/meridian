@@ -13,6 +13,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - `ruff format` drift in 22 source and test files (trailing commas, blank-line
   normalization, string quote style); CI `lint-and-typecheck` job now passes
   `ruff format --check` cleanly
+- `StarletteDeprecationWarning` in `tests/test_api.py`: added `httpx2>=2.0.0`
+  to the dev dependency group so Starlette 1.x `TestClient` uses the new
+  `httpx2` package instead of the deprecated `httpx` integration; all 361 unit
+  tests now pass with zero warnings
 
 ### Added
 - `tests/test_ingest_reconnect.py` — 12 unit tests for the shared
