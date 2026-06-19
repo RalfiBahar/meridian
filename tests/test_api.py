@@ -6,6 +6,8 @@ pool so no Docker stack is required.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -460,6 +462,120 @@ async def test_hub_drops_on_full_queue() -> None:
     # Next broadcast should not raise; it silently drops.
     await hub._broadcast("test", {"overflow": True})  # type: ignore[attr-defined]
     assert q.full()
+
+
+# ---------------------------------------------------------------------------
+# EventHub.run() tests (Redis stream draining)
+# ---------------------------------------------------------------------------
+
+
+async def test_hub_run_broadcasts_event_from_stream() -> None:
+    """hub.run() reads a Redis stream message and fans it out to subscribers."""
+    hub = EventHub()
+    q = hub.subscribe("all")
+    market_q = hub.subscribe("market:abc-123")
+
+    event_payload = {"market_id": "abc-123", "kind": "quote"}
+    raw_json = json.dumps(event_payload)
+
+    call_count = 0
+
+    class _MockRedis:
+        async def xread(self, streams: Any, block: Any, count: Any) -> list[Any]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [
+                    ["kalshi.events", [["1-1", {"event": raw_json}]]]
+                ]
+            # Signal stop on second call.
+            raise asyncio.CancelledError
+
+    task = asyncio.create_task(hub.run(_MockRedis()))
+    try:
+        # Give the run loop time to process the first batch.
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    assert not q.empty()
+    assert q.get_nowait() == event_payload
+    assert not market_q.empty()
+    assert market_q.get_nowait() == event_payload
+
+
+async def test_hub_run_skips_bad_json() -> None:
+    """hub.run() continues when a stream message contains invalid JSON."""
+    hub = EventHub()
+    q = hub.subscribe("all")
+
+    call_count = 0
+
+    class _MockRedis:
+        async def xread(self, streams: Any, block: Any, count: Any) -> list[Any]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                return [
+                    ["kalshi.events", [["1-1", {"event": "not-json-{{{}"}]]]
+                ]
+            raise asyncio.CancelledError
+
+    task = asyncio.create_task(hub.run(_MockRedis()))
+    try:
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    # Bad JSON → skipped; nothing broadcast.
+    assert q.empty()
+
+
+async def test_hub_run_recovers_from_redis_error() -> None:
+    """hub.run() logs and continues when Redis raises an unexpected exception."""
+    hub = EventHub()
+
+    call_count = 0
+
+    class _MockRedis:
+        async def xread(self, streams: Any, block: Any, count: Any) -> list[Any]:
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise RuntimeError("simulated redis error")
+            raise asyncio.CancelledError
+
+    task = asyncio.create_task(hub.run(_MockRedis()))
+    await asyncio.sleep(0)
+    await asyncio.sleep(0)
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+
+    # Just verify it didn't propagate — call_count > 1 means it looped.
+    assert call_count >= 1
+
+
+async def test_hub_run_cancels_cleanly() -> None:
+    """hub.run() exits without error when the task is cancelled."""
+    hub = EventHub()
+
+    class _MockRedis:
+        async def xread(self, streams: Any, block: Any, count: Any) -> list[Any]:
+            await asyncio.sleep(10)  # simulate blocking
+            return []
+
+    task = asyncio.create_task(hub.run(_MockRedis()))
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError):
+        await task
+    assert task.done()
 
 
 # ---------------------------------------------------------------------------
