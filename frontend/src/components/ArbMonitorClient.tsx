@@ -4,14 +4,29 @@ import { useState } from "react";
 import { useWs } from "@/lib/ws";
 import type { ArbViolationsResponse, CrossVenueDivergence, PartitionViolation, WsEvent } from "@/types/api";
 
-function ViolationRow({ v }: { v: PartitionViolation | CrossVenueDivergence }) {
-  const bps = "excess_bps" in v ? v.excess_bps : v.divergence_bps;
-  const sevClass = bps >= 50 ? "badge-red" : bps >= 20 ? "badge-yellow" : "badge";
+function parseCheckedAt(value?: string): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatBps(bps: number): string {
+  return `${bps.toLocaleString(undefined, { maximumFractionDigits: 1 })} bps`;
+}
+
+function severityClass(bps: number): string {
+  return bps >= 50 ? "badge-red" : bps >= 20 ? "badge-yellow" : "badge";
+}
+
+function PartitionViolationRow({ v }: { v: PartitionViolation }) {
   return (
     <tr>
       <td>
-        <span className={`badge ${sevClass}`} style={{ fontVariantNumeric: "tabular-nums" }}>
-          {bps.toFixed(1)} bps
+        <span
+          className={`badge ${severityClass(v.violation_bps)}`}
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          {formatBps(v.violation_bps)}
         </span>
       </td>
       <td>{v.group_label}</td>
@@ -20,7 +35,32 @@ function ViolationRow({ v }: { v: PartitionViolation | CrossVenueDivergence }) {
           {v.depth_feasible ? "feasible" : "thin"}
         </span>
       </td>
-      <td style={{ color: "var(--muted)", fontSize: 11 }}>{v.summary}</td>
+      <td style={{ color: "var(--muted)", fontSize: 11 }}>
+        {v.direction} · {v.n_contracts} contracts · ask {v.min_ask_sum.toFixed(2)} / bid{" "}
+        {v.max_bid_sum.toFixed(2)}
+      </td>
+    </tr>
+  );
+}
+
+function CrossVenueRow({ v }: { v: CrossVenueDivergence }) {
+  return (
+    <tr>
+      <td>
+        <span
+          className={`badge ${severityClass(v.divergence_bps)}`}
+          style={{ fontVariantNumeric: "tabular-nums" }}
+        >
+          {formatBps(v.divergence_bps)}
+        </span>
+      </td>
+      <td>
+        {v.venue_a} ↔ {v.venue_b}
+      </td>
+      <td style={{ color: "var(--muted)" }}>—</td>
+      <td style={{ color: "var(--muted)", fontSize: 11 }}>
+        {(v.p_mid_a * 100).toFixed(1)}% vs {(v.p_mid_b * 100).toFixed(1)}%
+      </td>
     </tr>
   );
 }
@@ -32,7 +72,7 @@ interface Props {
 export default function ArbMonitorClient({ initialData }: Props) {
   const [data, setData] = useState<ArbViolationsResponse | null>(initialData);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(
-    initialData ? new Date(initialData.checked_at) : null,
+    parseCheckedAt(initialData?.checked_at),
   );
 
   const { status: wsStatus } = useWs({
@@ -40,7 +80,7 @@ export default function ArbMonitorClient({ initialData }: Props) {
     onMessage: (ev: WsEvent) => {
       if (ev.type === "arb_snapshot") {
         setData(ev.data);
-        setLastUpdate(new Date(ev.data.checked_at));
+        setLastUpdate(parseCheckedAt(ev.data.checked_at) ?? new Date());
       }
     },
   });
@@ -91,7 +131,7 @@ export default function ArbMonitorClient({ initialData }: Props) {
             </thead>
             <tbody>
               {data.partition_violations.map((v) => (
-                <ViolationRow key={v.market_group_id} v={v} />
+                <PartitionViolationRow key={v.group_id} v={v} />
               ))}
             </tbody>
           </table>
@@ -114,7 +154,7 @@ export default function ArbMonitorClient({ initialData }: Props) {
             </thead>
             <tbody>
               {data.cross_venue_divergences.map((v) => (
-                <ViolationRow key={v.market_group_id} v={v} />
+                <CrossVenueRow key={v.group_id} v={v} />
               ))}
             </tbody>
           </table>

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+from datetime import UTC, datetime
 
 import asyncpg
 from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
@@ -59,7 +60,11 @@ async def _fetch_arb(pool: asyncpg.Pool) -> ArbViolationsResponse:
         )
         for r in cross
     ]
-    return ArbViolationsResponse(partition_violations=pv, cross_venue_divergences=cv)
+    return ArbViolationsResponse(
+        partition_violations=pv,
+        cross_venue_divergences=cv,
+        checked_at=datetime.now(UTC),
+    )
 
 
 # ---------------------------------------------------------------------------

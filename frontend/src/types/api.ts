@@ -67,27 +67,29 @@ export interface MarketDetail {
 }
 
 export interface PartitionViolation {
-  market_group_id: string;
+  group_id: string;
   group_label: string;
-  excess_bps: number;
+  n_contracts: number;
+  violation_bps: number;
+  direction: string;
   depth_feasible: boolean;
-  market_ids: string[];
-  summary: string;
+  min_ask_sum: number;
+  max_bid_sum: number;
 }
 
 export interface CrossVenueDivergence {
-  market_group_id: string;
-  group_label: string;
+  group_id: string;
+  venue_a: string;
+  p_mid_a: number;
+  venue_b: string;
+  p_mid_b: number;
   divergence_bps: number;
-  depth_feasible: boolean;
-  market_ids: string[];
-  summary: string;
 }
 
 export interface ArbViolationsResponse {
   partition_violations: PartitionViolation[];
   cross_venue_divergences: CrossVenueDivergence[];
-  checked_at: string;
+  checked_at?: string;
 }
 
 export interface ReliabilityBin {
@@ -109,12 +111,14 @@ export interface FedPMF {
   strikes: number[];
   probabilities: number[];
   expected_rate: number;
-  entropy_bits: number;
+  entropy: number;
   source: string;
+  raw_p_mid?: number[];
 }
 
 export interface FedWatchResponse {
-  kalshi: FedPMF;
+  fomc_date: string;
+  kalshi: FedPMF | null;
   cme: FedPMF | null;
 }
 

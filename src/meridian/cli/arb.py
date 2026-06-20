@@ -115,14 +115,12 @@ async def _run_monitor(
     help="Print proposed groups without writing to DB.",
 )
 def group_fed_cmd(dry_run: bool) -> None:
-    """Group Kalshi FED-rate contracts into partitions by FOMC meeting date.
+    """Group Kalshi FED-rate contracts by FOMC meeting date for monotonicity checks.
 
-    Kalshi Fed-rate tickers follow the pattern KXFED-YYMM-T<rate>.
-    All contracts with the same date component form a partition
-    (mutually exclusive outcomes for one FOMC meeting).
-
-    Creates or updates `market_groups` rows with group_type='partition'.
-    Does not affect markets already in a group.
+    Kalshi Fed-rate tickers follow the pattern KXFED-YYMM-T<rate>. Each contract
+    pays if the rate is *above* that strike (cumulative survival function), so
+    these are **not** mutually exclusive partition outcomes — they are grouped as
+    ``implication`` (ordered strikes), not ``partition``.
     """
     asyncio.run(_run_group_fed(dry_run=dry_run))
 
@@ -162,7 +160,7 @@ async def _run_group_fed(*, dry_run: bool) -> None:
                 by_date[date_key].append((str(r["id"]), r["external_id"]))
 
         for date_key, markets in sorted(by_date.items()):
-            label = f"KXFED partition {date_key}"
+            label = f"KXFED strikes {date_key}"
             click.echo(f"\n{label}  ({len(markets)} contracts)")
             for _mid, ticker in markets:
                 click.echo(f"  {ticker}")
@@ -174,12 +172,12 @@ async def _run_group_fed(*, dry_run: bool) -> None:
                 group_id = await conn.fetchval(
                     """
                     INSERT INTO market_groups (label, group_type, description)
-                    VALUES ($1, 'partition', $2)
+                    VALUES ($1, 'implication', $2)
                     ON CONFLICT DO NOTHING
                     RETURNING id
                     """,
                     label,
-                    f"Kalshi Fed-rate partition for FOMC date {date_key}",
+                    f"Kalshi Fed above-strike chain for FOMC date {date_key}",
                 )
                 if group_id is None:
                     group_id = await conn.fetchval(
@@ -193,4 +191,4 @@ async def _run_group_fed(*, dry_run: bool) -> None:
                     )
 
         if not dry_run:
-            click.echo("\nPartition groups created/updated.")
+            click.echo("\nImplication groups created/updated.")

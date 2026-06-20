@@ -92,6 +92,27 @@ async function MeetingCard({ label, date, isActive }: MeetingCardProps) {
   const kalshi = data.kalshi;
   const cme = data.cme;
 
+  if (!kalshi) {
+    return (
+      <div
+        style={{
+          flex: 1,
+          background: "var(--surface)",
+          border: `1px solid ${isActive ? "var(--accent)" : "var(--border)"}`,
+          borderRadius: 8,
+          padding: 16,
+          minWidth: 0,
+        }}
+      >
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{label}</div>
+        <div style={{ color: "var(--muted)", fontSize: 11 }}>{date}</div>
+        <div style={{ color: "var(--muted)", fontSize: 11, marginTop: 8 }}>
+          No Kalshi KXFED data for this meeting
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -133,7 +154,7 @@ async function MeetingCard({ label, date, isActive }: MeetingCardProps) {
           color: "var(--muted)",
         }}
       >
-        <span>H = {kalshi.entropy_bits.toFixed(2)} bits</span>
+        <span>H = {kalshi.entropy.toFixed(2)} bits</span>
         {cme && (
           <span>
             Δ CME = {((kalshi.expected_rate - cme.expected_rate) * 100).toFixed(1)} bps
@@ -196,6 +217,15 @@ async function ActiveDetail({ date }: { date: string }) {
     return null;
   }
 
+  const kalshi = data.kalshi;
+  if (!kalshi) {
+    return (
+      <div style={{ marginTop: 32, color: "var(--muted)", fontSize: 11 }}>
+        No Kalshi KXFED data for {date}
+      </div>
+    );
+  }
+
   return (
     <div style={{ marginTop: 32 }}>
       <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 12 }}>
@@ -211,8 +241,8 @@ async function ActiveDetail({ date }: { date: string }) {
           </tr>
         </thead>
         <tbody>
-          {data.kalshi.strikes.map((strike, i) => {
-            const kp = data.kalshi.probabilities[i] ?? 0;
+          {kalshi.strikes.map((strike, i) => {
+            const kp = kalshi.probabilities[i] ?? 0;
             const cp = data.cme?.probabilities[i];
             const delta = cp != null ? (kp - cp) * 100 : null;
             return (

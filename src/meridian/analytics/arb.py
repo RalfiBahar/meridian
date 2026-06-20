@@ -219,6 +219,7 @@ async def _partition_groups(pool: asyncpg.Pool) -> list[tuple[UUID, str]]:
             """
             SELECT id, label FROM market_groups
             WHERE group_type = 'partition'
+              AND label NOT LIKE 'KXFED%%'
             """
         )
     return [(UUID(str(r["id"])), r["label"]) for r in rows]

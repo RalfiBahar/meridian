@@ -107,6 +107,7 @@ class CrossVenueDivergence(BaseModel):
 class ArbViolationsResponse(BaseModel):
     partition_violations: list[PartitionViolation]
     cross_venue_divergences: list[CrossVenueDivergence]
+    checked_at: datetime
 
 
 # ---------------------------------------------------------------------------
