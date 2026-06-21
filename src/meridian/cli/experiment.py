@@ -164,6 +164,99 @@ async def _run_list(*, name: str | None, limit: int) -> None:
         click.echo(f"{str(r['name'])[:29]:<30}  {r['status']!s:<10}  {created:<24}  {metrics_str}")
 
 
+@experiment.command(name="export")
+@click.argument("id_or_name")
+@click.option(
+    "--format",
+    "fmt",
+    default="json",
+    type=click.Choice(["json", "md"], case_sensitive=False),
+    show_default=True,
+    help="Output format: json or md (Markdown).",
+)
+@click.option(
+    "--output",
+    "-o",
+    default=None,
+    metavar="FILE",
+    help="Write to FILE instead of stdout.",
+)
+def export_cmd(id_or_name: str, fmt: str, output: str | None) -> None:
+    """Export experiment params, metrics, and SHA to JSON or Markdown.
+
+    ID_OR_NAME can be a numeric row ID or an experiment name (latest run).
+    """
+    asyncio.run(_run_export(id_or_name=id_or_name, fmt=fmt, output=output))
+
+
+async def _run_export(*, id_or_name: str, fmt: str, output: str | None) -> None:
+    settings = get_settings()
+    configure_logging(settings)
+
+    async with pool_context(settings) as pool:
+        # Try numeric ID first, then fall back to name lookup.
+        try:
+            row_id = int(id_or_name)
+            query = "SELECT * FROM experiments WHERE id = $1 LIMIT 1"
+            param: Any = row_id
+        except ValueError:
+            query = "SELECT * FROM experiments WHERE name = $1 ORDER BY created_at DESC LIMIT 1"
+            param = id_or_name
+
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(query, param)
+
+    if row is None:
+        click.echo(f"No experiment found for '{id_or_name}'.", err=True)
+        raise SystemExit(1)
+
+    record: dict[str, Any] = dict(row)
+    # Normalise datetime fields to ISO strings for serialisation.
+    for k, v in record.items():
+        if hasattr(v, "isoformat"):
+            record[k] = v.isoformat()
+
+    if fmt == "json":
+        text = json.dumps(record, indent=2, default=str)
+    else:
+        lines: list[str] = [
+            f"# Experiment: {record.get('name', 'unknown')}",
+            "",
+            f"| Field | Value |",
+            f"|-------|-------|",
+            f"| ID | {record.get('id', '—')} |",
+            f"| Status | {record.get('status', '—')} |",
+            f"| Git SHA | `{record.get('code_sha') or '—'}` |",
+            f"| Data window | {record.get('data_window') or '—'} |",
+            f"| Started | {record.get('started_at') or '—'} |",
+            f"| Completed | {record.get('completed_at') or '—'} |",
+            "",
+            "## Parameters",
+            "",
+            "```json",
+            json.dumps(record.get("params") or {}, indent=2),
+            "```",
+            "",
+            "## Metrics",
+            "",
+            "```json",
+            json.dumps(record.get("metrics") or {}, indent=2),
+            "```",
+            "",
+        ]
+        if record.get("notes"):
+            lines += ["## Notes", "", str(record["notes"]), ""]
+        text = "\n".join(lines)
+
+    if output:
+        import pathlib
+
+        pathlib.Path(output).write_text(text, encoding="utf-8")
+        click.echo(f"Written to {output}")
+    else:
+        click.echo(text)
+
+
 @experiment.command(name="portfolio")
 @click.option(
     "--category",

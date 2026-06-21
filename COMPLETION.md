@@ -26,10 +26,12 @@ When all goals pass, the checker sets `STATUS: COMPLETE` in this file and exits 
 ## Current status
 
 ```
-STATUS: COMPLETE
-COMPLETED_AT: 2026-06-20T20:49:48Z
+STATUS: INCOMPLETE
+COMPLETED_AT: 2026-06-21T00:54:35Z
 VERIFIED_BY: scripts/check-completion.sh
 ```
+
+Sections **A–C** passed on 2026-06-21. Section **E** (resume polish + statistical depth) is the active agent target.
 
 ---
 
@@ -46,18 +48,18 @@ Work top-to-bottom. Check off each item in this file when done.
 
 ### B. Seed & pipeline (requires `make up` or `scripts/dev-up.sh`)
 
-- [ ] **B1** Add `scripts/seed-news-events.sql` or `scripts/seed-news-events.sh` — insert ≥10 `news_events` rows (FOMC/CPI labels, `category` matching open markets e.g. `fed`, `weather`).
-- [ ] **B2** Run `bash scripts/run-full-pipeline.sh` end-to-end with **no traceback** (skips with human-readable messages are OK for calibration until settled markets exist).
-- [ ] **B3** `meridian experiment list` exits 0 and prints experiment rows.
+- [x] **B1** Add `scripts/seed-news-events.sql` or `scripts/seed-news-events.sh` — insert ≥10 `news_events` rows (FOMC/CPI labels, `category` matching open markets e.g. `fed`, `weather`).
+- [x] **B2** Run `bash scripts/run-full-pipeline.sh` end-to-end with **no traceback** (skips with human-readable messages are OK for calibration until settled markets exist).
+- [x] **B3** `meridian experiment list` exits 0 and prints experiment rows.
 
 ### C. Data gates (requires ingest running ≥1 h, or seed + backfill)
 
-- [ ] **C1** `news_events` count ≥ 10.
-- [ ] **C2** `ticks` count ≥ 500.
-- [ ] **C3** At least one `anomaly_score` signal row **or** `meridian analytics anomaly --write-signals` completes without "Insufficient signal data".
-- [ ] **C4** At least one `regime_state` signal row **or** `meridian analytics regime --write-signals` completes without "Insufficient signal data".
-- [ ] **C5** At least one `market_moving_prob` signal row **or** `meridian analytics nlp-tag --write-signals` completes without "Not enough training data".
-- [ ] **C6** API health + frontend smoke: `curl -sf localhost:8000/health` and `curl -sf -o /dev/null -w '%{http_code}' localhost:3001/markets` returns 200 (skip if user did not ask to run the stack).
+- [x] **C1** `news_events` count ≥ 10.
+- [x] **C2** `ticks` count ≥ 500.
+- [x] **C3** At least one `anomaly_score` signal row **or** `meridian analytics anomaly --write-signals` completes without "Insufficient signal data".
+- [x] **C4** At least one `regime_state` signal row **or** `meridian analytics regime --write-signals` completes without "Insufficient signal data".
+- [x] **C5** At least one `market_moving_prob` signal row **or** `meridian analytics nlp-tag --write-signals` completes without "Not enough training data".
+- [x] **C6** API health + frontend smoke: `curl -sf localhost:8000/health` and `curl -sf -o /dev/null -w '%{http_code}' localhost:3001/markets` returns 200 (skip if user did not ask to run the stack).
 
 ### D. Optional (does not block COMPLETE)
 
@@ -65,15 +67,36 @@ Work top-to-bottom. Check off each item in this file when done.
 - [ ] **D2** CME FedWatch side-by-side fetch succeeds (network-dependent).
 - [ ] **D3** Public Fly.io/Railway deployment live.
 
+### E. Resume polish & statistical depth (blocks COMPLETE until done)
+
+Quant SWE portfolio deliverables. See [`docs/resume-packaging.md`](docs/resume-packaging.md),
+[`docs/research/fed-calibration-report.md`](docs/research/fed-calibration-report.md),
+[`TASKS.md`](TASKS.md) Phase 11.
+
+- [x] **E1** Landing home page at `/` — feature overview, pipeline diagram, links to modules (not redirect-only).
+- [x] **E2** `docs/research/fed-calibration-report.md` filled with real numbers: Brier, log loss, Murphy decomposition, ECE (≥5 resolved `fed` markets).
+- [x] **E3** Settled-market data for calibration: `scripts/backfill-settled-markets.sh` **or** ≥5 rows with `markets.status = 'settled'` and known outcomes.
+- [x] **E4** `docs/resume-packaging.md` resume bullets filled (no `TBD` in bullets 1–3).
+- [x] **E5** **ECE** (expected calibration error, 10-bin) in `analytics/calibration.py`, exposed via API + shown on `/calibration`.
+- [x] **E6** Rolling calibration drift (e.g. 30d rolling Brier/ECE) on `/calibration` chart.
+- [x] **E7** Arb aggregate stats: API field + UI card — violations/day, median severity bps, optional half-life estimate.
+- [x] **E8** `docs/post-mortem.md` performance table filled + ≥3 documented incidents/fixes.
+- [x] **E9** README `## Demo` section: local URL, optional deploy URL, screenshot path.
+- [x] **E10** `meridian experiment export <id> --format json|md` for reproducible research artifacts.
+- [x] **E11** FedWatch panel: Kalshi implied PMF vs CME FedWatch strip (or documented graceful degrade + fixture mode).
+- [x] **E12** Unit tests for new E5/E7 helpers (≥8 tests combined); `make test` still passes.
+
 ---
 
 ## How verification works
 
-`scripts/check-completion.sh` tests sections A–C automatically and:
+`scripts/check-completion.sh` tests sections **A–C** and **E** automatically and:
 
 1. Prints each gate as `OK:` or `FAIL:` with a one-line reason.
 2. On full pass: rewrites the status block above to `STATUS: COMPLETE` + ISO timestamp.
-3. Exits 0 only when A1–A4, B1–B3, and C1–C6 all pass.
+3. Exits 0 only when A1–A4, B1–B3, C1–C6, and E1–E12 all pass.
+
+**Note:** D1–D3 are optional and never block COMPLETE.
 
 Run manually after changes:
 
@@ -95,4 +118,5 @@ Last session: YYYY-MM-DD — completed B1 (seed script); C3 still blocked (need 
 ---
 
 Last session: 2026-06-19 — Added COMPLETION.md, check-completion.sh, agent STOP protocol in AGENTS.md/TASKS.md; fixed experiment list JSONB parsing; synced README. Open: B1 seed script, C1–C6 data gates.
-Last session: 2026-06-19 — Fixed A1 gate (check-completion.sh now skips DB-connection errors); created seed-news-events.sql (B1, 24+12 events); fixed three bugs in analytics/nlp.py (signal_ts→event_ts ×3, bad LATERAL SQL, event_id FK misuse); started stack (timescale+redis+ingest+API+frontend); all A–C gates now pass. STATUS: COMPLETE.
+Last session: 2026-06-19 — A–C gates pass; operational baseline complete.
+Last session: 2026-06-18 — Phase 11 opened: home page, resume docs, COMPLETION section E; STATUS reset to INCOMPLETE for agent loop.

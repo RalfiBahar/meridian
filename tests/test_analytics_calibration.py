@@ -19,6 +19,7 @@ from meridian.analytics.calibration import (
     _market_pmid_history,
     _resolved_markets,
     brier_score,
+    expected_calibration_error,
     isotonic_recalibrate,
     log_loss,
     reliability_diagram,
@@ -120,6 +121,101 @@ def test_reliability_mean_predicted_in_range() -> None:
         assert b.lower <= b.mean_predicted < b.upper or b.mean_predicted == 1.0
         assert 0.0 <= b.mean_realized <= 1.0
         assert b.count > 0
+
+
+# ---------------------------------------------------------------------------
+# Expected calibration error (ECE)
+# ---------------------------------------------------------------------------
+
+
+def test_ece_perfect_calibration() -> None:
+    """A predictor where mean_predicted == mean_realized in every bin has ECE = 0."""
+    # Uniform predictions exactly equal outcomes — ECE approaches 0.
+    rng = np.random.default_rng(42)
+    # 10 bins, each bucket: predicted = realized by construction.
+    p_list, o_list = [], []
+    for i in range(10):
+        lo, hi = i / 10, (i + 1) / 10
+        mid = (lo + hi) / 2
+        p_list.extend([mid] * 20)
+        o_list.extend([mid] * 20)  # realized == predicted (continuous approx)
+    p = np.array(p_list)
+    o = np.array(o_list)
+    ece = expected_calibration_error(p, o, n_bins=10)
+    assert ece == pytest.approx(0.0, abs=1e-9)
+
+
+def test_ece_worst_case_miscalibration() -> None:
+    """A predictor that always says 1.0 but outcome is 0 should have high ECE."""
+    p = np.ones(100)
+    o = np.zeros(100)
+    ece = expected_calibration_error(p, o, n_bins=10)
+    assert ece == pytest.approx(1.0, abs=1e-9)
+
+
+def test_ece_returns_float_between_0_and_1() -> None:
+    rng = np.random.default_rng(7)
+    p = rng.uniform(0, 1, 500)
+    o = rng.integers(0, 2, 500).astype(float)
+    ece = expected_calibration_error(p, o, n_bins=10)
+    assert 0.0 <= ece <= 1.0
+    assert np.isfinite(ece)
+
+
+def test_ece_empty_input_returns_zero() -> None:
+    p = np.array([], dtype=np.float64)
+    o = np.array([], dtype=np.float64)
+    assert expected_calibration_error(p, o) == pytest.approx(0.0)
+
+
+def test_ece_better_than_worst_for_partially_calibrated() -> None:
+    """Well-calibrated predictor should have lower ECE than random one."""
+    rng = np.random.default_rng(99)
+    true_p = rng.uniform(0.3, 0.7, 200)
+    outcomes = rng.binomial(1, true_p).astype(float)
+    # Well-calibrated: predict close to true probability.
+    p_good = true_p + rng.normal(0, 0.02, 200)
+    p_good = np.clip(p_good, 0.01, 0.99)
+    # Bad: always predict 0.9.
+    p_bad = np.full(200, 0.9)
+    ece_good = expected_calibration_error(p_good, outcomes)
+    ece_bad = expected_calibration_error(p_bad, outcomes)
+    assert ece_good < ece_bad
+
+
+def test_ece_in_calibration_result_summary() -> None:
+    """CalibrationResult.summary() includes ECE when set."""
+    result = CalibrationResult(
+        category="fed",
+        lookback_days=30,
+        n_markets=5,
+        n_observations=100,
+        brier_score=0.1423,
+        log_loss=0.4071,
+        reliability_bins=[],
+        brier_after_isotonic=0.1201,
+        ece=0.0341,
+    )
+    s = result.summary()
+    assert "ECE" in s
+    assert "0.0341" in s
+
+
+def test_ece_none_omitted_from_summary() -> None:
+    """CalibrationResult.summary() omits ECE line when ece is None."""
+    result = CalibrationResult(
+        category=None,
+        lookback_days=None,
+        n_markets=1,
+        n_observations=5,
+        brier_score=0.2,
+        log_loss=0.5,
+        reliability_bins=[],
+        brier_after_isotonic=None,
+        ece=None,
+    )
+    s = result.summary()
+    assert "ECE" not in s
 
 
 # ---------------------------------------------------------------------------

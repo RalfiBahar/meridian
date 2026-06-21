@@ -14,7 +14,7 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - Exit **0** → project is operationally complete. Reply **`MERIDIAN COMPLETE — stopping.`** Do not continue.
 - Exit **1** → work items in [`COMPLETION.md`](COMPLETION.md) section **Remaining goals** (top unchecked item first).
 
-Phases 0–10 below are **code-complete**. Open operational items live only in `COMPLETION.md`.
+Phases 0–10 below are **code-complete**. Open operational items live in `COMPLETION.md` sections **B–C** (done) and **E** (active — Phase 11).
 
 ---
 
@@ -256,3 +256,23 @@ Implements the final ROADMAP stretch goal.
   tested 1c.3 reconnect loop untouched to avoid regression risk in this
   pass — the logic is otherwise identical)
 - [x] Document Polymarket auth mechanism in `docs/polymarket.md` once researched
+
+---
+
+## Phase 11 — Resume polish & statistical depth (ACTIVE)
+
+See [`COMPLETION.md`](COMPLETION.md) section **E** and [`docs/resume-packaging.md`](docs/resume-packaging.md).
+
+- [x] **11-a** Landing page at `/` — `HomeClient.tsx` with module cards, pipeline strip, live API stats (`frontend/src/app/page.tsx`)
+- [x] **11-b** Settled-market backfill — `scripts/backfill-settled-markets.sh` or SQL fixture (≥5 `fed` markets with outcomes) for calibration
+- [x] **11-c** `analytics/calibration.py` — add `expected_calibration_error()` (10 equal-width bins); include in `CalibrationResult` and CLI output
+- [x] **11-d** API `GET /api/v1/calibration/summary` — add `ece`, rolling 30d Brier/ECE series for drift chart
+- [x] **11-e** Frontend `/calibration` — ECE stat card + rolling drift line chart (reuse chart patterns from markets detail)
+- [x] **11-f** Run walk-forward / calibrate on settled data; commit numbers to `docs/research/fed-calibration-report.md`
+- [x] **11-g** Arb aggregate stats — `analytics/arb.py` helper + `GET /api/v1/arb/stats` (violations/day, median bps, half-life from signal history)
+- [x] **11-h** Frontend `/arb` — summary stats header above violation table
+- [x] **11-i** `meridian experiment export <id> [--format json|md]` — dump params, metrics, SHA to stdout or file
+- [x] **11-j** FedWatch — CME fetch side-by-side with Kalshi PMF on `/fedwatch` (network) or fixture + `docs/fedwatch.md` degrade note
+- [x] **11-k** Fill `docs/resume-packaging.md` bullets and `docs/post-mortem.md` performance/incidents from live stack metrics
+- [x] **11-l** README `## Demo` section + optional screenshot under `docs/images/`
+- [x] **11-m** ≥8 unit tests for ECE + arb stats; update `scripts/check-completion.sh` E gates; sync CHANGELOG

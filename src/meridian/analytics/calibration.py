@@ -52,6 +52,8 @@ class CalibrationResult:
     reliability_bins: list[ReliabilityBin]
     # Isotonic-recalibrated Brier score (how much isotonic recalibration helps)
     brier_after_isotonic: float | None
+    # Expected calibration error (ECE) over 10 equal-width bins
+    ece: float | None = None
 
     def summary(self) -> str:
         lines = [
@@ -62,6 +64,8 @@ class CalibrationResult:
             f"Brier score:       {self.brier_score:.4f}",
             f"Log loss:          {self.log_loss:.4f}",
         ]
+        if self.ece is not None:
+            lines.append(f"ECE (10-bin):      {self.ece:.4f}")
         if self.brier_after_isotonic is not None:
             lines.append(f"Brier (isotonic):  {self.brier_after_isotonic:.4f}")
         lines.append("\nReliability bins:")
@@ -142,6 +146,25 @@ def reliability_diagram(
     return bins
 
 
+def expected_calibration_error(
+    probabilities: npt.NDArray[np.float64],
+    outcomes: npt.NDArray[np.float64],
+    *,
+    n_bins: int = 10,
+) -> float:
+    """Expected calibration error (ECE) using n_bins equal-width bins.
+
+    ECE = Σ_b (|mean_predicted_b − mean_realized_b|) × (n_b / N)
+
+    A perfectly calibrated forecaster has ECE = 0.
+    """
+    n = len(probabilities)
+    if n == 0:
+        return 0.0
+    bins = reliability_diagram(probabilities, outcomes, n_bins=n_bins)
+    return float(sum(abs(b.mean_predicted - b.mean_realized) * b.count / n for b in bins))
+
+
 def isotonic_recalibrate(
     probabilities: npt.NDArray[np.float64],
     outcomes: npt.NDArray[np.float64],
@@ -195,6 +218,7 @@ async def run_calibration(
     bs = brier_score(p, o)
     ll = log_loss(p, o)
     rel = reliability_diagram(p, o, n_bins=n_bins)
+    ece = expected_calibration_error(p, o, n_bins=n_bins)
 
     brier_iso: float | None = None
     if len(p) >= 2:
@@ -210,6 +234,7 @@ async def run_calibration(
         log_loss=ll,
         reliability_bins=rel,
         brier_after_isotonic=brier_iso,
+        ece=ece,
     )
 
 

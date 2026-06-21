@@ -11,12 +11,14 @@ import pytest
 
 from meridian.analytics.arb import (
     KALSHI_FEE_PER_SIDE,
+    ArbAggregateStats,
     CrossVenueArbResult,
     PartitionArbResult,
     _check_partition_arb,
     _group_contracts,
     _write_cross_venue_signal,
     _write_partition_signal,
+    arb_aggregate_stats,
     run_cross_venue_monitor,
     run_partition_monitor,
 )
@@ -414,3 +416,83 @@ async def test_run_cross_venue_monitor_no_pairs() -> None:
         _EmptyPool(), threshold_bps=Decimal("0"), write_signals=False
     )
     assert results == []
+
+
+# ---------------------------------------------------------------------------
+# Arb aggregate stats
+# ---------------------------------------------------------------------------
+
+
+async def test_arb_aggregate_stats_empty_db() -> None:
+    """arb_aggregate_stats returns zero violations when no signals exist."""
+
+    class _EmptyConn:
+        async def fetch(self, query: str, *args: object) -> list[dict[str, Any]]:
+            return []
+
+    class _EmptyPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _EmptyConn()
+
+    stats = await arb_aggregate_stats(_EmptyPool(), lookback_days=30)  # type: ignore[arg-type]
+    assert isinstance(stats, ArbAggregateStats)
+    assert stats.total_violations == 0
+    assert stats.violations_per_day == pytest.approx(0.0)
+    assert stats.median_severity_bps is None
+    assert stats.lookback_days == 30
+
+
+async def test_arb_aggregate_stats_with_violations() -> None:
+    """arb_aggregate_stats computes violations/day and median from signal rows."""
+
+    class _DataConn:
+        async def fetch(self, query: str, *args: object) -> list[dict[str, Any]]:
+            return [
+                {"value": 15.0},
+                {"value": 20.0},
+                {"value": 10.0},
+                {"value": 25.0},
+            ]
+
+    class _DataPool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _DataConn()
+
+    stats = await arb_aggregate_stats(_DataPool(), lookback_days=10)  # type: ignore[arg-type]
+    assert stats.total_violations == 4
+    assert stats.violations_per_day == pytest.approx(0.4)
+    # Median of [10, 15, 20, 25] = 17.5
+    assert stats.median_severity_bps == pytest.approx(17.5, abs=0.1)
+
+
+async def test_arb_aggregate_stats_single_violation() -> None:
+    """Single violation row — median equals that value."""
+
+    class _SingleConn:
+        async def fetch(self, query: str, *args: object) -> list[dict[str, Any]]:
+            return [{"value": 42.0}]
+
+    class _SinglePool:
+        @asynccontextmanager
+        async def acquire(self) -> Any:
+            yield _SingleConn()
+
+    stats = await arb_aggregate_stats(_SinglePool(), lookback_days=7)  # type: ignore[arg-type]
+    assert stats.total_violations == 1
+    assert stats.median_severity_bps == pytest.approx(42.0)
+
+
+def test_arb_aggregate_stats_dataclass_fields() -> None:
+    """ArbAggregateStats dataclass can be instantiated with expected fields."""
+    s = ArbAggregateStats(
+        lookback_days=30,
+        total_violations=63,
+        violations_per_day=2.1,
+        median_severity_bps=18.0,
+    )
+    assert s.lookback_days == 30
+    assert s.total_violations == 63
+    assert s.violations_per_day == pytest.approx(2.1)
+    assert s.median_severity_bps == pytest.approx(18.0)

@@ -42,6 +42,44 @@ async def calibration(
         n_observations=result.n_observations,
         brier_score=result.brier_score,
         log_loss=result.log_loss,
+        ece=result.ece,
+        brier_after_isotonic=result.brier_after_isotonic,
+        reliability_bins=[
+            ReliabilityBinModel(
+                lower=b.lower,
+                upper=b.upper,
+                mean_predicted=b.mean_predicted,
+                mean_realized=b.mean_realized,
+                count=b.count,
+            )
+            for b in result.reliability_bins
+        ],
+    )
+
+
+@router.get("/calibration/summary")
+async def calibration_summary(
+    category: str | None = Query(None),
+    lookback: int = Query(30, ge=1, description="Lookback window in days"),
+    pool: asyncpg.Pool = Depends(get_pool),
+    _auth: str = Depends(require_api_key),
+) -> CalibrationResponse:
+    """Alias for /calibration with a default 30-day rolling window — used for drift charts."""
+    from meridian.analytics.calibration import run_calibration
+
+    lb = timedelta(days=lookback)
+    result = await run_calibration(pool, category=category, lookback=lb)
+    if result is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="No resolved markets found.")
+
+    return CalibrationResponse(
+        category=result.category,
+        n_markets=result.n_markets,
+        n_observations=result.n_observations,
+        brier_score=result.brier_score,
+        log_loss=result.log_loss,
+        ece=result.ece,
         brier_after_isotonic=result.brier_after_isotonic,
         reliability_bins=[
             ReliabilityBinModel(

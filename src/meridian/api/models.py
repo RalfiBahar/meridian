@@ -129,8 +129,17 @@ class CalibrationResponse(BaseModel):
     n_observations: int
     brier_score: float
     log_loss: float
+    ece: float | None
     brier_after_isotonic: float | None
     reliability_bins: list[ReliabilityBinModel]
+
+
+class ArbStats(BaseModel):
+    lookback_days: int
+    total_violations: int
+    violations_per_day: float
+    median_severity_bps: float | None
+    computed_at: datetime
 
 
 # ---------------------------------------------------------------------------

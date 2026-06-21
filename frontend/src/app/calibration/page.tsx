@@ -167,6 +167,55 @@ export default async function CalibrationPage({
             <ReliabilityChart bins={data.reliability_bins} />
           </div>
 
+          {data.ece != null && (
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "10px 14px",
+                maxWidth: 200,
+                marginBottom: 24,
+              }}
+            >
+              <div style={{ color: "var(--muted)", fontSize: 10, marginBottom: 4 }}>
+                ECE (10-bin)
+              </div>
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 600,
+                  color: data.ece < 0.05 ? "var(--green)" : data.ece < 0.1 ? "var(--yellow)" : "var(--red)",
+                }}
+              >
+                {data.ece.toFixed(4)}
+              </div>
+              <div style={{ color: "var(--muted)", fontSize: 10, marginTop: 2 }}>
+                expected calibration error
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginBottom: 24 }}>
+            <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 8 }}>
+              ROLLING CALIBRATION DRIFT (30-day window)
+            </div>
+            <div
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 6,
+                padding: "10px 14px",
+                fontSize: 11,
+                color: "var(--muted)",
+              }}
+            >
+              Rolling Brier/ECE drift tracking requires ≥30 days of settled market history.
+              Computed via <code>GET /api/v1/calibration/summary?lookback=30</code>.
+              Once settled-market backfill is complete the chart will render here.
+            </div>
+          </div>
+
           <div>
             <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 10 }}>
               BIN TABLE

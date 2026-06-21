@@ -18,7 +18,7 @@ from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
 from meridian.api.auth import get_valid_keys, require_api_key
 from meridian.api.deps import get_pool
-from meridian.api.models import ArbViolationsResponse, CrossVenueDivergence, PartitionViolation
+from meridian.api.models import ArbStats, ArbViolationsResponse, CrossVenueDivergence, PartitionViolation
 
 router = APIRouter()
 
@@ -70,6 +70,25 @@ async def _fetch_arb(pool: asyncpg.Pool) -> ArbViolationsResponse:
 # ---------------------------------------------------------------------------
 # REST endpoint
 # ---------------------------------------------------------------------------
+
+
+@router.get("/arb/stats", response_model=ArbStats)
+async def arb_stats(
+    lookback: int = Query(30, ge=1, description="Lookback window in days"),
+    pool: asyncpg.Pool = Depends(get_pool),
+    _auth: str = Depends(require_api_key),
+) -> ArbStats:
+    """Return aggregate arb violation statistics over the lookback window."""
+    from meridian.analytics.arb import arb_aggregate_stats
+
+    s = await arb_aggregate_stats(pool, lookback_days=lookback)
+    return ArbStats(
+        lookback_days=s.lookback_days,
+        total_violations=s.total_violations,
+        violations_per_day=s.violations_per_day,
+        median_severity_bps=s.median_severity_bps,
+        computed_at=datetime.now(UTC),
+    )
 
 
 @router.get("/arb/violations", response_model=ArbViolationsResponse)

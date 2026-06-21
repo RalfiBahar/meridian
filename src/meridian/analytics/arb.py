@@ -24,8 +24,9 @@ the LP reduces to exactly the sum check.
 from __future__ import annotations
 
 import json
+import statistics
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -54,6 +55,16 @@ class PartitionArbResult:
     direction: str  # "long" | "short" | "none"
     depth_feasible: bool
     market_ids: list[UUID]
+
+
+@dataclass
+class ArbAggregateStats:
+    """Aggregate statistics over historical arb signals."""
+
+    lookback_days: int
+    total_violations: int
+    violations_per_day: float
+    median_severity_bps: float | None
 
 
 @dataclass
@@ -126,6 +137,50 @@ async def run_cross_venue_monitor(
         if write_signals:
             await _write_cross_venue_signal(pool, r)
     return results
+
+
+# ---------------------------------------------------------------------------
+# Aggregate stats helper
+# ---------------------------------------------------------------------------
+
+
+async def arb_aggregate_stats(
+    pool: asyncpg.Pool,
+    *,
+    lookback_days: int = 30,
+) -> ArbAggregateStats:
+    """Compute aggregate arb statistics from historical signals.
+
+    Queries `signals` for `arb_violation_bps` rows in the lookback window
+    and returns violations/day and median severity.
+    """
+    cutoff = datetime.now(tz=UTC) - timedelta(days=lookback_days)
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT value
+            FROM   signals
+            WHERE  signal_type = 'arb_violation_bps'
+              AND  event_ts    >= $1
+              AND  value       >  0
+            ORDER  BY event_ts
+            """,
+            cutoff,
+        )
+
+    total = len(rows)
+    violations_per_day = total / lookback_days if lookback_days > 0 else 0.0
+    median_bps: float | None = None
+    if rows:
+        values = [float(r["value"]) for r in rows]
+        median_bps = statistics.median(values)
+
+    return ArbAggregateStats(
+        lookback_days=lookback_days,
+        total_violations=total,
+        violations_per_day=round(violations_per_day, 3),
+        median_severity_bps=round(median_bps, 2) if median_bps is not None else None,
+    )
 
 
 # ---------------------------------------------------------------------------
