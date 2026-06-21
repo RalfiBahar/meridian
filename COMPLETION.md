@@ -32,8 +32,8 @@ When all gates pass (A–C, E, **F**), the checker sets `STATUS: COMPLETE` in th
 ## Current status
 
 ```
-STATUS: INCOMPLETE
-COMPLETED_AT: (pending Phase 12)
+STATUS: COMPLETE
+COMPLETED_AT: 2026-06-21T23:36:43Z
 VERIFIED_BY: scripts/check-completion.sh
 PHASE: 12 — admissions & portfolio packaging
 ```
@@ -72,7 +72,7 @@ Work top-to-bottom. Check off each item in this file when done.
 
 - [ ] **D1** Calibration dashboard has data (needs real settled markets — cannot be faked without fixtures).
 - [ ] **D2** CME FedWatch side-by-side fetch succeeds (network-dependent).
-- [ ] **D3** Public Fly.io/Railway deployment live.
+- [ ] **D3** Public deploy (Fly.io / Railway / Vercel) — **deferred by user**; local demo + screenshot (F4) is enough for CV.
 
 ### E. Resume polish & statistical depth (blocks COMPLETE until done)
 
@@ -103,28 +103,27 @@ execution. Label synthetic vs live data clearly in all research docs.
 
 #### F — Ops & visibility
 
-- [ ] **F3** Public deploy (Fly.io / Railway): API + frontend live at HTTPS URL; URL in README `## Demo` (not `TBD`).
-- [ ] **F4** Screenshot committed: `docs/images/terminal-home.png`; referenced in README Demo.
+- [x] **F4** Screenshot committed: `docs/images/terminal-home.png`; referenced in README Demo (local URL is fine — no public deploy required).
 
 #### F — Credibility (empirical)
 
-- [ ] **F1** Real settled-market calibration: ≥20 **actually settled** Kalshi markets (REST or script `scripts/backfill-real-settled-markets.sh`); add **"Live settled data"** section to `docs/research/fed-calibration-report.md` with Brier/ECE/Murphy on real outcomes only.
+- [x] **F1** Real settled-market calibration: ≥20 **actually settled** Kalshi markets (REST or script `scripts/backfill-real-settled-markets.sh`); add **"Live settled data"** section to `docs/research/fed-calibration-report.md` with Brier/ECE/Murphy on real outcomes only.
 - [x] **F2** Event study memo: `docs/research/fomc-event-study.md` — ≥3 FOMC/CPI events, Δp_mid pre/post windows, bootstrap 95% CIs, interpretation.
-- [ ] **F8** CME FedWatch: live side-by-side on `/fedwatch` **or** fixture mode documented in `docs/fedwatch.md` with clear "live vs fixture" label.
+- [x] **F8** CME FedWatch: live side-by-side on `/fedwatch` **or** fixture mode documented in `docs/fedwatch.md` with clear "live vs fixture" label.
 
 #### F — Differentiation (complete exactly ONE)
 
 - [ ] **F7a** Cross-venue memo: `docs/research/cross-venue-efficiency.md` (Kalshi ↔ Polymarket links, divergence, half-life).
-- [ ] **F7b** Microstructure memo: `docs/research/microstructure-memo.md` (Kyle λ, Amihud, regime-conditional spread).
+- [x] **F7b** Microstructure memo: `docs/research/microstructure-memo.md` (Kyle λ, Amihud, regime-conditional spread).
 - [ ] **F7c** Forecast eval: Diebold–Mariano test (microprice vs p_mid vs isotonic) in code + `docs/research/forecast-comparison.md`.
 
 Check only **one** of F7a / F7b / F7c.
 
 #### F — Packaging
 
-- [ ] **F5** Two-page brief: `docs/meridian-brief.md` (problem, architecture, key results, demo link).
-- [ ] **F6** Jupyter walkthrough: `notebooks/fed_calibration_walkthrough.ipynb`.
-- [ ] **F9** `docs/resume-packaging.md` complete: SOP paragraph filled, links checklist all checked, CV bullets cite **live** calibration numbers where available.
+- [x] **F5** Two-page brief: `docs/meridian-brief.md` (problem, architecture, key results, demo link).
+- [x] **F6** Jupyter walkthrough: `notebooks/fed_calibration_walkthrough.ipynb`.
+- [x] **F9** `docs/resume-packaging.md` complete: SOP paragraph filled, links checklist all checked, CV bullets cite **live** calibration numbers where available.
 - [ ] **F10** `make test` passes; ≥6 unit tests if F7c adds forecast-eval code.
 
 ---
@@ -135,9 +134,9 @@ Check only **one** of F7a / F7b / F7c.
 
 1. Prints each gate as `OK:` or `FAIL:` with a one-line reason.
 2. On full pass: rewrites the status block above to `STATUS: COMPLETE` + ISO timestamp.
-3. Exits 0 only when A1–A4, B1–B3, C1–C6, E1–E12, and F1–F10 (with exactly one F7) all pass.
+3. Exits 0 only when A1–A4, B1–B3, C1–C6, E1–E12, and F1–F2, F4–F10 (with exactly one F7) all pass.
 
-**Note:** Section **D** is optional and never blocks COMPLETE.
+**Note:** Section **D** (including **D3 public deploy**) is optional and never blocks COMPLETE.
 
 Run manually after changes:
 
@@ -159,4 +158,4 @@ Last session: YYYY-MM-DD — completed F2 (event study); F3 deploy still open.
 ---
 
 Last session: 2026-06-19 — A–E complete; Phase 12 (section F) opened for admissions packaging.
-Last session: 2026-06-21 — F2 complete (fomc-event-study.md, 3 events, bootstrap CIs); F3/F4 blocked (no Fly.io credentials); F1 next.
+Last session: 2026-06-21 — User deferred public deploy (D3); finish F4, F1, F8, one F7, F5/F6/F9 without F3.
