@@ -9,9 +9,10 @@ It documents invariants, conventions, and where to find things.
 
 1. Run `bash scripts/check-completion.sh` (or `--code` if Docker is down).
 2. **Exit code 0** → reply **`MERIDIAN COMPLETE — stopping.`** and do not edit code or start new work.
-3. **Exit code 1** → open [`COMPLETION.md`](COMPLETION.md), work the **first unchecked goal** only, re-run the checker before ending.
+3. **Exit code 1** → read [`COMPLETION.md`](COMPLETION.md) section **F** (Phase 12), work the **first unchecked goal** only, re-run the checker before ending.
 
-Implementation phases 0–10 are code-complete. Remaining work is **operational** (docs, bugs, seed data, ingest time). See `COMPLETION.md` for the full gate list and stop condition.
+Phases 0–11 are code-complete. **Phase 12** (admissions packaging) is active:
+[`docs/admissions-roadmap.md`](docs/admissions-roadmap.md) · [`AGENT-LOOP.md`](AGENT-LOOP.md).
 
 ---
 
@@ -268,4 +269,6 @@ fly.toml     Backend Fly.io config
 
 See `ROADMAP.md` for phase details and `TASKS.md` for the prioritized backlog.
 
-**Operational completion (agent loop stop):** [`COMPLETION.md`](COMPLETION.md) + `bash scripts/check-completion.sh`.
+**Operational completion (agent loop stop):** [`COMPLETION.md`](COMPLETION.md) + `bash scripts/check-completion.sh` + [`AGENT-LOOP.md`](AGENT-LOOP.md).
+
+**Admissions / Phase 12:** [`docs/admissions-roadmap.md`](docs/admissions-roadmap.md)

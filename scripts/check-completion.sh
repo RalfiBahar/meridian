@@ -55,14 +55,20 @@ else
 fi
 
 if [[ "$CODE_ONLY" -eq 1 ]]; then
-  echo ""
-  if [[ "$FAIL" -eq 0 ]]; then
-    echo "==> Code gates (A) passed. Run without --code for full check."
-    exit 0
+  if [[ "$FAIL" -ne 0 ]]; then
+    echo ""
+    echo "==> INCOMPLETE ($FAIL code gate(s) failed)"
+    exit 1
   fi
-  echo "==> INCOMPLETE ($FAIL code gate(s) failed)"
-  exit 1
-fi
+  echo ""
+  echo "==> Code gates (A) passed. Checking E + F file gates (--code mode)..."
+  echo ""
+else
+  if [[ "$FAIL" -ne 0 ]]; then
+    echo ""
+    echo "==> INCOMPLETE ($FAIL gate(s) failed) — see COMPLETION.md"
+    exit 1
+  fi
 
 # ── Stack health (needed for B/C) ────────────────────────────────────────────
 if ! curl -sf http://localhost:8000/health >/dev/null 2>&1; then
@@ -72,6 +78,9 @@ if ! curl -sf http://localhost:8000/health >/dev/null 2>&1; then
   exit 1
 fi
 ok "Stack API health"
+fi
+
+if [[ "$CODE_ONLY" -ne 1 ]]; then
 
 # ── B1: seed script exists ───────────────────────────────────────────────────
 if [[ -f scripts/seed-news-events.sh ]] || [[ -f scripts/seed-news-events.sql ]]; then
@@ -136,6 +145,269 @@ if [[ "$FE_CODE" == "200" ]]; then
   ok "C6 frontend /markets returns 200"
 else
   fail "C6 frontend not on :3001 (HTTP $FE_CODE)"
+fi
+
+echo ""
+if [[ "$FAIL" -eq 0 ]]; then
+  echo "==> Sections A–C passed. Checking E (resume polish)..."
+  echo ""
+else
+  echo "==> INCOMPLETE ($FAIL gate(s) failed) — see COMPLETION.md"
+  exit 1
+fi
+fi
+
+if [[ "$CODE_ONLY" -eq 1 ]]; then
+  echo "==> Checking E (resume polish)..."
+  echo ""
+fi
+
+# ── E1: home page (not redirect-only) ───────────────────────────────────────
+if [[ -f frontend/src/components/HomeClient.tsx ]] \
+   && grep -q "HomeClient" frontend/src/app/page.tsx 2>/dev/null \
+   && ! grep -q 'redirect("/markets")' frontend/src/app/page.tsx 2>/dev/null; then
+  ok "E1 landing home page at /"
+else
+  fail "E1 add HomeClient landing page (replace redirect in page.tsx)"
+fi
+
+# ── E2: calibration report has real Brier number ─────────────────────────────
+if [[ -f docs/research/fed-calibration-report.md ]] \
+   && grep -Ei "Brier score \| [0-9]" docs/research/fed-calibration-report.md >/dev/null 2>&1 \
+   && ! grep -q "| Brier score | TBD |" docs/research/fed-calibration-report.md 2>/dev/null; then
+  ok "E2 fed-calibration-report.md has Brier score"
+else
+  fail "E2 fill docs/research/fed-calibration-report.md (Brier, ECE, Murphy — no TBD in metrics table)"
+fi
+
+# ── E3: settled markets for calibration ────────────────────────────────────
+if [[ -f scripts/backfill-settled-markets.sh ]] || [[ -f scripts/backfill-settled-markets.sql ]]; then
+  ok "E3 settled-market backfill script exists"
+else
+  _e3_settled=$(uv run python <<'PY' 2>/dev/null || echo 0
+import asyncio
+from meridian.config import get_settings
+from meridian.db.postgres import pool_context
+
+async def main() -> None:
+    async with pool_context(get_settings()) as pool:
+        n = await pool.fetchval("SELECT COUNT(*) FROM markets WHERE status = 'settled'")
+        print(n)
+
+asyncio.run(main())
+PY
+)
+  if [[ "${_e3_settled:-0}" -ge 5 ]]; then
+    ok "E3 settled markets >= 5 (${_e3_settled})"
+  else
+    fail "E3 need scripts/backfill-settled-markets.sh or >=5 settled markets (have ${_e3_settled:-0})"
+  fi
+fi
+
+# ── E4: resume bullets filled ───────────────────────────────────────────────
+if [[ -f docs/resume-packaging.md ]] \
+   && grep -q "## Resume bullets" docs/resume-packaging.md; then
+  ok "E4 resume-packaging.md bullets section present"
+else
+  fail "E4 fill resume bullets in docs/resume-packaging.md"
+fi
+
+# ── E5: ECE in calibration code + API ────────────────────────────────────────
+if grep -q "expected_calibration_error\|def ece\|\.ece" src/meridian/analytics/calibration.py 2>/dev/null \
+   && grep -qi "ece" src/meridian/api/routes/calibration.py 2>/dev/null; then
+  ok "E5 ECE in calibration engine + API"
+else
+  fail "E5 add ECE to analytics/calibration.py and calibration API route"
+fi
+
+# ── E6: rolling calibration drift in frontend ────────────────────────────────
+if grep -qi "drift\|rolling" frontend/src/app/calibration/page.tsx 2>/dev/null \
+   || grep -qi "drift\|rolling" frontend/src/components/CalibrationClient.tsx 2>/dev/null; then
+  ok "E6 rolling calibration drift UI"
+else
+  fail "E6 add rolling Brier/ECE drift chart on /calibration"
+fi
+
+# ── E7: arb aggregate stats API ──────────────────────────────────────────────
+if grep -q "/arb/stats\|arb_stats\|ArbStats" src/meridian/api/routes/arb.py 2>/dev/null; then
+  ok "E7 arb aggregate stats API"
+else
+  fail "E7 add GET /api/v1/arb/stats (violations/day, median bps)"
+fi
+
+# ── E8: post-mortem performance table ────────────────────────────────────────
+if [[ -f docs/post-mortem.md ]] \
+   && ! grep -A5 "## Performance notes" docs/post-mortem.md | grep -q '| TBD |'; then
+  ok "E8 post-mortem.md performance table filled"
+else
+  fail "E8 fill performance table in docs/post-mortem.md"
+fi
+
+# ── E9: README Demo section ──────────────────────────────────────────────────
+if grep -q "^## Demo" README.md 2>/dev/null; then
+  ok "E9 README Demo section"
+else
+  fail "E9 add ## Demo section to README.md"
+fi
+
+# ── E10: experiment export CLI ───────────────────────────────────────────────
+if uv run python -m meridian.cli experiment export --help >/dev/null 2>&1; then
+  ok "E10 meridian experiment export command"
+else
+  fail "E10 add meridian experiment export <id> [--format json|md]"
+fi
+
+# ── E11: FedWatch comparison ─────────────────────────────────────────────────
+if grep -qi "cme\|fedwatch\|comparison" frontend/src/app/fedwatch/page.tsx 2>/dev/null \
+   || grep -qi "cme\|fedwatch" frontend/src/components/FedWatchClient.tsx 2>/dev/null \
+   || [[ -f docs/fedwatch.md ]]; then
+  ok "E11 FedWatch Kalshi vs CME comparison or documented fixture mode"
+else
+  fail "E11 FedWatch panel: CME strip vs Kalshi PMF (or docs/fedwatch.md fixture mode)"
+fi
+
+# ── E12: tests for new helpers ───────────────────────────────────────────────
+_e12_ece=$(grep -l -i "ece\|expected_calibration" tests/test_analytics_calibration.py 2>/dev/null | wc -l)
+_e12_arb=$(grep -l -i "arb.*stats\|aggregate" tests/test_analytics_arb.py 2>/dev/null | wc -l)
+if [[ "$_e12_ece" -ge 1 ]] && [[ "$_e12_arb" -ge 1 ]]; then
+  ok "E12 unit tests for ECE + arb stats"
+else
+  fail "E12 add unit tests for ECE and arb aggregate stats (test_analytics_calibration.py, test_analytics_arb.py)"
+fi
+
+FE_HOME=$(curl -sf -o /dev/null -w '%{http_code}' http://localhost:3001/ 2>/dev/null || echo "000")
+if [[ "$CODE_ONLY" -eq 1 ]]; then
+  ok "E1 smoke skipped (--code mode)"
+elif [[ "$FE_HOME" == "200" ]]; then
+  ok "E1 smoke: frontend / returns 200"
+else
+  fail "E1 frontend / not 200 (HTTP $FE_HOME)"
+fi
+
+echo ""
+if [[ "$FAIL" -ne 0 ]]; then
+  echo "==> INCOMPLETE ($FAIL gate(s) failed) — see COMPLETION.md (sections A–C or E)"
+  exit 1
+fi
+
+echo "==> Sections A–C and E passed. Checking F (Phase 12 admissions)..."
+echo ""
+
+# ── F3: public demo URL in README ────────────────────────────────────────────
+if grep -qE 'https?://[^ ]+' README.md 2>/dev/null \
+   && grep -A20 '^## Demo' README.md | grep -qE 'https?://' \
+   && ! grep -A20 '^## Demo' README.md | grep -qi 'TBD'; then
+  ok "F3 public HTTPS demo URL in README Demo"
+else
+  fail "F3 deploy and add live HTTPS URL to README ## Demo (not TBD)"
+fi
+
+# ── F4: screenshot ───────────────────────────────────────────────────────────
+if [[ -f docs/images/terminal-home.png ]]; then
+  ok "F4 docs/images/terminal-home.png exists"
+else
+  fail "F4 add screenshot docs/images/terminal-home.png"
+fi
+
+# ── F1: live settled calibration ─────────────────────────────────────────────
+if [[ -f docs/research/fed-calibration-report.md ]] \
+   && grep -qi "live settled data" docs/research/fed-calibration-report.md; then
+  ok "F1 fed-calibration-report has Live settled data section"
+else
+  fail "F1 add Live settled data section to docs/research/fed-calibration-report.md (≥20 real settled markets)"
+fi
+if [[ -f scripts/backfill-real-settled-markets.sh ]]; then
+  ok "F1 backfill-real-settled-markets.sh exists"
+elif [[ "$CODE_ONLY" -eq 1 ]]; then
+  ok "F1 settled count skipped (--code mode; need script or >=20 settled)"
+else
+  _f1_settled=$(uv run python <<'PY' 2>/dev/null || echo 0
+import asyncio
+from meridian.config import get_settings
+from meridian.db.postgres import pool_context
+
+async def main() -> None:
+    async with pool_context(get_settings()) as pool:
+        n = await pool.fetchval(
+            "SELECT COUNT(*) FROM markets WHERE status = 'settled'"
+        )
+        print(n)
+
+asyncio.run(main())
+PY
+)
+  if [[ "${_f1_settled:-0}" -ge 20 ]]; then
+    ok "F1 settled markets >= 20 (${_f1_settled})"
+  else
+    fail "F1 need scripts/backfill-real-settled-markets.sh or >=20 settled markets (have ${_f1_settled:-0})"
+  fi
+fi
+
+# ── F2: event study memo ─────────────────────────────────────────────────────
+if [[ -f docs/research/fomc-event-study.md ]] \
+   && grep -qi "bootstrap" docs/research/fomc-event-study.md; then
+  ok "F2 fomc-event-study.md with bootstrap CIs"
+else
+  fail "F2 add docs/research/fomc-event-study.md (≥3 events, bootstrap 95% CIs)"
+fi
+
+# ── F8: CME FedWatch ─────────────────────────────────────────────────────────
+if [[ -f docs/fedwatch.md ]] \
+   && grep -qi "cme" docs/fedwatch.md; then
+  ok "F8 docs/fedwatch.md documents CME comparison or fixture mode"
+else
+  fail "F8 update docs/fedwatch.md with CME live vs fixture mode"
+fi
+
+# ── F7: exactly one differentiation memo ─────────────────────────────────────
+_f7_count=0
+[[ -f docs/research/cross-venue-efficiency.md ]] && _f7_count=$((_f7_count + 1))
+[[ -f docs/research/microstructure-memo.md ]] && _f7_count=$((_f7_count + 1))
+[[ -f docs/research/forecast-comparison.md ]] && _f7_count=$((_f7_count + 1))
+if grep -rl "diebold" src/meridian/analytics/ 2>/dev/null | grep -q .; then
+  _f7_count=$((_f7_count + 1))
+fi
+if [[ "$_f7_count" -eq 1 ]]; then
+  ok "F7 exactly one differentiation deliverable (F7a/b/c)"
+elif [[ "$_f7_count" -eq 0 ]]; then
+  fail "F7 add ONE of: cross-venue-efficiency.md, microstructure-memo.md, forecast-comparison.md (or Diebold code)"
+else
+  fail "F7 complete exactly ONE of F7a/F7b/F7c (found ${_f7_count})"
+fi
+
+# ── F5: project brief ────────────────────────────────────────────────────────
+if [[ -f docs/meridian-brief.md ]] && [[ $(wc -c < docs/meridian-brief.md) -ge 500 ]]; then
+  ok "F5 docs/meridian-brief.md (≥500 bytes)"
+else
+  fail "F5 add docs/meridian-brief.md (2-page project brief)"
+fi
+
+# ── F6: notebook ─────────────────────────────────────────────────────────────
+if compgen -G "notebooks/*.ipynb" >/dev/null 2>&1; then
+  ok "F6 Jupyter notebook under notebooks/"
+else
+  fail "F6 add notebooks/fed_calibration_walkthrough.ipynb"
+fi
+
+# ── F9: resume packaging complete ────────────────────────────────────────────
+if [[ -f docs/resume-packaging.md ]] \
+   && grep -q "## Statement of purpose" docs/resume-packaging.md \
+   && ! grep -A8 '## Links checklist' docs/resume-packaging.md | grep -q '\[ \]'; then
+  ok "F9 resume-packaging.md SOP + links checklist complete"
+else
+  fail "F9 fill SOP and check all boxes in docs/resume-packaging.md links checklist"
+fi
+
+# ── F10: tests (A4 covers make test; optional F7c test count) ─────────────────
+_f10_dm_tests=$(grep -c -i "diebold\|mariano" tests/test_*.py 2>/dev/null || echo 0)
+if [[ -f docs/research/forecast-comparison.md ]] || grep -rl "diebold" src/meridian/ 2>/dev/null | grep -q .; then
+  if [[ "${_f10_dm_tests:-0}" -ge 6 ]]; then
+    ok "F10 ≥6 Diebold–Mariano tests (F7c)"
+  else
+    fail "F10 F7c selected — add ≥6 unit tests for forecast eval (have ${_f10_dm_tests:-0})"
+  fi
+else
+  ok "F10 tests (F7c not selected; A4 covers make test)"
 fi
 
 echo ""

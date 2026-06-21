@@ -25,3 +25,5 @@ Read these in order if you're new to the project:
 - **"What does this Kalshi field mean?"** → [kalshi.md](kalshi.md)
 - **"What's a microprice?"** → [concepts.md](concepts.md)
 - **"What's coming next?"** → [roadmap.md](roadmap.md)
+- **CV / MFE applications (Phase 12)?** → [admissions-roadmap.md](admissions-roadmap.md) · [resume-packaging.md](resume-packaging.md)
+- **Start agent loop?** → [../AGENT-LOOP.md](../AGENT-LOOP.md)

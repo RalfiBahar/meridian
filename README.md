@@ -13,7 +13,7 @@ data and computes derived signals. It does not place orders or move money.
 
 ## Status
 
-**Phases 0–10 are code-complete.** Remaining work is operational (seed data, ingest time, doc sync). Agents: see [`COMPLETION.md`](COMPLETION.md) and run `bash scripts/check-completion.sh` — exit 0 means **stop**.
+**Phases 0–11 are code-complete.** **Phase 12** (admissions packaging for quant SWE / ML / MFE) is active — see [`COMPLETION.md`](COMPLETION.md) section **F**, [`docs/admissions-roadmap.md`](docs/admissions-roadmap.md), and [`AGENT-LOOP.md`](AGENT-LOOP.md).
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -29,8 +29,23 @@ data and computes derived signals. It does not place orders or move money.
 | 6 | Research framework + portfolio optimizer | ✓ Done |
 | 7 | Quant Terminal frontend + production polish | ✓ Done |
 | 8–10 | Anomaly, regime, market maker, NLP (stretch) | ✓ Done |
+| 11 | Resume polish: ECE, arb stats, home page, research report | ✓ Done |
+| 12 | Admissions: live calibration, event study, deploy, brief | In progress |
+| 11 | Resume polish: ECE, arb stats, home page, research report | In progress |
 
 Full narrative: [docs/roadmap.md](docs/roadmap.md) · [ROADMAP.md](ROADMAP.md)
+
+---
+
+## Demo
+
+**Local:** after `bash scripts/dev-up.sh` — [http://localhost:3001](http://localhost:3001) (home) · [markets](http://localhost:3001/markets) · [calibration](http://localhost:3001/calibration) · [arb](http://localhost:3001/arb) · [fedwatch](http://localhost:3001/fedwatch)
+
+**Public URL:** TBD (see COMPLETION E9 / optional D3 deploy)
+
+**Research report:** [`docs/research/fed-calibration-report.md`](docs/research/fed-calibration-report.md) · **Resume bullets:** [`docs/resume-packaging.md`](docs/resume-packaging.md)
+
+Screenshot: `docs/images/terminal-home.png` (add after Phase 11)
 
 ---
 
@@ -60,7 +75,7 @@ bash scripts/dev-up.sh           # kill stale processes, reset volumes, boot eve
 bash scripts/check-completion.sh # agent stop condition — exit 0 means done
 ```
 
-See [`COMPLETION.md`](COMPLETION.md) for remaining operational goals.
+See [`COMPLETION.md`](COMPLETION.md) for Phase 12 goals and [`AGENT-LOOP.md`](AGENT-LOOP.md) to start the agent loop.
 
 For a complete first-run walkthrough including credential setup, see
 [docs/getting-started.md](docs/getting-started.md).

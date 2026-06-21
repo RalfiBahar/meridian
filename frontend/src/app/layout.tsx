@@ -8,6 +8,7 @@ export const metadata: Metadata = {
 };
 
 const NAV_LINKS = [
+  { href: "/", label: "Home" },
   { href: "/markets", label: "Markets" },
   { href: "/arb", label: "Arb" },
   { href: "/calibration", label: "Calibration" },
@@ -33,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         >
           <Link
-            href="/markets"
+            href="/"
             style={{ fontWeight: 700, fontSize: 14, color: "var(--text)", letterSpacing: "0.05em" }}
           >
             MERIDIAN

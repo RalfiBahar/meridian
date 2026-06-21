@@ -1,8 +1,11 @@
 # Resume packaging — Meridian
 
-Use this doc when applying to **quant SWE / research engineer** roles. Fill numbers
-from [`research/fed-calibration-report.md`](research/fed-calibration-report.md) after
-Phase 11 / COMPLETION section **E** is done.
+Use this doc when applying to **quant SWE**, **ML research engineer**, and **MFE**
+programs (e.g. [Berkeley Haas MFE](https://mfe.haas.berkeley.edu/)).
+
+Phase 11 filled baseline bullets. **Phase 12** (`COMPLETION.md` section **F**) adds live
+empirical results, public demo, and admissions materials — see
+[`admissions-roadmap.md`](admissions-roadmap.md).
 
 ---
 
@@ -14,17 +17,32 @@ Terminal (Next.js). Read-only; not a trading bot.
 
 ---
 
-## Resume bullets (fill after E2/E4)
+## Resume bullets (update after F1 + F3)
 
 1. Built streaming ingest from Kalshi/Polymarket WebSockets into TimescaleDB
    (500K+ ticks, idempotent writes, gap detection, Redis fan-out).
 2. Implemented calibration (Brier/Murphy decomposition, reliability diagrams, ECE),
    cross-partition no-arb LP checks, Fed implied-PMF, and walk-forward experiment
    harness with full Postgres provenance (**Brier 0.142** on **5** resolved markets,
-   beats 0.25 climatology baseline by ~43%).
+   beats 0.25 climatology baseline by ~43% — **replace with live numbers after F1**).
 3. Shipped Quant Terminal (Next.js + FastAPI): live market scanner, arb monitor
    (~2.1 violations/day, median 18 bps), calibration drift, FedWatch
-   panel — run locally via `bash scripts/dev-up.sh` → http://localhost:3001.
+   panel — **live demo: [URL after F3]** or local `bash scripts/dev-up.sh`.
+
+---
+
+## Statement of purpose (fill in F9)
+
+> I built Meridian, an open-source research engine for prediction markets, to study
+> whether event-contract prices are calibrated and internally consistent under
+> no-arbitrage constraints. The system ingests live L2 data from Kalshi and
+> Polymarket, computes implied probabilities and microstructure metrics, and
+> evaluates forecasts on resolved markets using Brier decomposition and expected
+> calibration error. This project connects empirical asset pricing and market
+> microstructure with production-grade data engineering — the intersection
+> emphasized in programs like Berkeley's MFE.
+
+Customize with your live Brier/ECE numbers after **F1**.
 
 ---
 
@@ -34,8 +52,8 @@ Terminal (Next.js). Read-only; not a trading bot.
    stack for calibration and cross-market consistency.
 2. **Architecture**: WS → canonical events → TimescaleDB hypertables → signal
    pipeline → FastAPI → terminal.
-3. **Quant result**: Walk-forward eval on Fed-rate markets; report in
-   `docs/research/fed-calibration-report.md`.
+3. **Quant result**: Walk-forward eval + event study + (one F7 memo); reports under
+   `docs/research/`.
 4. **Engineering**: Migrations with checksums, strict mypy, Prometheus/Grafana,
    CI — see `docs/post-mortem.md`.
 
@@ -46,23 +64,44 @@ Terminal (Next.js). Read-only; not a trading bot.
 | Method | Where in codebase |
 |--------|-------------------|
 | Brier score + Murphy decomposition | `analytics/calibration.py`, CLI `analytics calibrate` |
+| ECE (expected calibration error) | Phase 11 / E5 |
 | Isotonic recalibration | Phase 2 calibration engine |
 | LP no-arb partition check | `analytics/arb.py`, `cvxpy` |
-| Walk-forward CV (Sharpe, max DD) | `research/walkforward.py`, `experiment run --walk-forward` |
+| Walk-forward CV (Sharpe, max DD) | `research/walkforward.py`, `experiment portfolio` |
 | Ledoit-Wolf + Markowitz | `research/portfolio.py` |
 | Kyle λ, Amihud, OBI | `analytics/microstructure.py` |
 | HMM regime (3-state) | `analytics/regime.py` |
 | Isolation Forest anomalies | `analytics/anomaly.py` |
 | MM backtest (Sharpe ann.) | `research/marketmaker.py` |
-
-Phase 11 adds: **ECE** (expected calibration error), rolling calibration drift,
-arb aggregate stats (violations/day, median edge bps, half-life).
+| Event study + bootstrap CIs | Phase 12 / F2 |
+| Diebold–Mariano (optional F7c) | Phase 12 |
 
 ---
 
-## Links checklist
+## What NOT to claim
+
+- Do not call synthetic backfill results "live empirical" in interviews.
+- Do not describe Meridian as a trading bot — it is read-only research.
+- Do not list every module; lead with **one** sharp result (calibration or event study).
+
+---
+
+## Links checklist (complete in F9)
 
 - [ ] GitHub repo URL in README
-- [ ] Live demo URL in README `## Demo`
-- [ ] Screenshot or GIF in README
-- [ ] `docs/research/fed-calibration-report.md` committed with real numbers
+- [ ] Live demo HTTPS URL in README `## Demo` (F3)
+- [ ] Screenshot `docs/images/terminal-home.png` in README (F4)
+- [ ] `docs/research/fed-calibration-report.md` with **Live settled data** section (F1)
+- [ ] `docs/meridian-brief.md` for PDF export (F5)
+- [ ] `notebooks/fed_calibration_walkthrough.ipynb` (F6)
+
+---
+
+## Attachments for applications
+
+| File | When |
+|---|---|
+| `docs/meridian-brief.md` → PDF | Resume supplement, MFE application |
+| `docs/research/fed-calibration-report.md` | Quant research sample |
+| `docs/research/fomc-event-study.md` | Empirical finance sample (F2) |
+| One of F7a/b/c memos | Differentiation |

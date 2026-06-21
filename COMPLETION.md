@@ -2,7 +2,11 @@
 
 **Read this file before any other task work.**
 
-Implementation phases 0–10 are **code-complete** (`ROADMAP.md`, `TASKS.md`). What remains is **operational completion**: docs in sync, bugs fixed, seed data present, and every analytics pipeline step producing output instead of skipping.
+Implementation phases 0–11 are **code-complete** (`ROADMAP.md`, `TASKS.md`).
+**Phase 12** (admissions & portfolio packaging) is the **active agent target** — see
+[`docs/admissions-roadmap.md`](docs/admissions-roadmap.md) and section **F** below.
+
+Sections **A–E** (operational baseline + resume polish) are done. Work **F** top-to-bottom.
 
 ---
 
@@ -17,9 +21,11 @@ bash scripts/check-completion.sh
 | Exit code | Action |
 |---|---|
 | **0** | Reply exactly: **`MERIDIAN COMPLETE — stopping.`** Do not edit code, open new tasks, or continue the loop. |
-| **1** | Work the **first unchecked item** in [Remaining goals](#remaining-goals) below (one item per session unless the user says otherwise). Re-run the checker before ending the session. |
+| **1** | Work the **first unchecked item** in [Remaining goals](#remaining-goals) — section **F** first if any F item is open; otherwise A–E. Re-run the checker before ending the session. |
 
-When all goals pass, the checker sets `STATUS: COMPLETE` in this file and exits 0.
+When all gates pass (A–C, E, **F**), the checker sets `STATUS: COMPLETE` in this file and exits 0.
+
+**Start agent loop:** see [`AGENT-LOOP.md`](AGENT-LOOP.md).
 
 ---
 
@@ -27,11 +33,12 @@ When all goals pass, the checker sets `STATUS: COMPLETE` in this file and exits 
 
 ```
 STATUS: INCOMPLETE
-COMPLETED_AT: 2026-06-21T00:54:35Z
+COMPLETED_AT: (pending Phase 12)
 VERIFIED_BY: scripts/check-completion.sh
+PHASE: 12 — admissions & portfolio packaging
 ```
 
-Sections **A–C** passed on 2026-06-21. Section **E** (resume polish + statistical depth) is the active agent target.
+Sections **A–E** passed 2026-06-21. Section **F** is open.
 
 ---
 
@@ -86,23 +93,57 @@ Quant SWE portfolio deliverables. See [`docs/resume-packaging.md`](docs/resume-p
 - [x] **E11** FedWatch panel: Kalshi implied PMF vs CME FedWatch strip (or documented graceful degrade + fixture mode).
 - [x] **E12** Unit tests for new E5/E7 helpers (≥8 tests combined); `make test` still passes.
 
+### F. Admissions & portfolio packaging — Phase 12 (blocks COMPLETE until done)
+
+Target: **quant SWE / ML / MFE** applications. Full context:
+[`docs/admissions-roadmap.md`](docs/admissions-roadmap.md) · [`docs/resume-packaging.md`](docs/resume-packaging.md)
+
+**Rules:** One F item per agent session unless user says otherwise. Do not add trading
+execution. Label synthetic vs live data clearly in all research docs.
+
+#### F — Ops & visibility
+
+- [ ] **F3** Public deploy (Fly.io / Railway): API + frontend live at HTTPS URL; URL in README `## Demo` (not `TBD`).
+- [ ] **F4** Screenshot committed: `docs/images/terminal-home.png`; referenced in README Demo.
+
+#### F — Credibility (empirical)
+
+- [ ] **F1** Real settled-market calibration: ≥20 **actually settled** Kalshi markets (REST or script `scripts/backfill-real-settled-markets.sh`); add **"Live settled data"** section to `docs/research/fed-calibration-report.md` with Brier/ECE/Murphy on real outcomes only.
+- [x] **F2** Event study memo: `docs/research/fomc-event-study.md` — ≥3 FOMC/CPI events, Δp_mid pre/post windows, bootstrap 95% CIs, interpretation.
+- [ ] **F8** CME FedWatch: live side-by-side on `/fedwatch` **or** fixture mode documented in `docs/fedwatch.md` with clear "live vs fixture" label.
+
+#### F — Differentiation (complete exactly ONE)
+
+- [ ] **F7a** Cross-venue memo: `docs/research/cross-venue-efficiency.md` (Kalshi ↔ Polymarket links, divergence, half-life).
+- [ ] **F7b** Microstructure memo: `docs/research/microstructure-memo.md` (Kyle λ, Amihud, regime-conditional spread).
+- [ ] **F7c** Forecast eval: Diebold–Mariano test (microprice vs p_mid vs isotonic) in code + `docs/research/forecast-comparison.md`.
+
+Check only **one** of F7a / F7b / F7c.
+
+#### F — Packaging
+
+- [ ] **F5** Two-page brief: `docs/meridian-brief.md` (problem, architecture, key results, demo link).
+- [ ] **F6** Jupyter walkthrough: `notebooks/fed_calibration_walkthrough.ipynb`.
+- [ ] **F9** `docs/resume-packaging.md` complete: SOP paragraph filled, links checklist all checked, CV bullets cite **live** calibration numbers where available.
+- [ ] **F10** `make test` passes; ≥6 unit tests if F7c adds forecast-eval code.
+
 ---
 
 ## How verification works
 
-`scripts/check-completion.sh` tests sections **A–C** and **E** automatically and:
+`scripts/check-completion.sh` tests sections **A–C**, **E**, and **F** automatically and:
 
 1. Prints each gate as `OK:` or `FAIL:` with a one-line reason.
 2. On full pass: rewrites the status block above to `STATUS: COMPLETE` + ISO timestamp.
-3. Exits 0 only when A1–A4, B1–B3, C1–C6, and E1–E12 all pass.
+3. Exits 0 only when A1–A4, B1–B3, C1–C6, E1–E12, and F1–F10 (with exactly one F7) all pass.
 
-**Note:** D1–D3 are optional and never block COMPLETE.
+**Note:** Section **D** is optional and never blocks COMPLETE.
 
 Run manually after changes:
 
 ```sh
 bash scripts/check-completion.sh          # full check (needs stack for C gates)
-bash scripts/check-completion.sh --code   # A gates only (no Docker)
+bash scripts/check-completion.sh --code   # A + E + F file gates (no Docker)
 ```
 
 ---
@@ -112,11 +153,10 @@ bash scripts/check-completion.sh --code   # A gates only (no Docker)
 When ending an incomplete session, append a one-line note under **Last session**:
 
 ```
-Last session: YYYY-MM-DD — completed B1 (seed script); C3 still blocked (need 1h ingest).
+Last session: YYYY-MM-DD — completed F2 (event study); F3 deploy still open.
 ```
 
 ---
 
-Last session: 2026-06-19 — Added COMPLETION.md, check-completion.sh, agent STOP protocol in AGENTS.md/TASKS.md; fixed experiment list JSONB parsing; synced README. Open: B1 seed script, C1–C6 data gates.
-Last session: 2026-06-19 — A–C gates pass; operational baseline complete.
-Last session: 2026-06-18 — Phase 11 opened: home page, resume docs, COMPLETION section E; STATUS reset to INCOMPLETE for agent loop.
+Last session: 2026-06-19 — A–E complete; Phase 12 (section F) opened for admissions packaging.
+Last session: 2026-06-21 — F2 complete (fomc-event-study.md, 3 events, bootstrap CIs); F3/F4 blocked (no Fly.io credentials); F1 next.
