@@ -104,42 +104,31 @@ bash scripts/check-completion.sh
 ## Live settled data
 
 > **Data note:** This section reports calibration on **actually settled** Kalshi Fed-rate markets
-> fetched via the Kalshi REST API (`scripts/backfill-real-settled-markets.sh`).
-> Numbers below are from the extended backfill covering all `KXFED-*` markets resolved
-> between 2024-01-01 and 2025-07-30 (N = 23 markets, 207 signal observations).
-> Unlike the synthetic walk-forward above, these outcomes are real Federal Reserve decisions.
-> See the **Reproduce** section for how to re-run.
+> fetched via `meridian markets sync-settled` / `scripts/backfill-real-settled-markets.sh`.
+> Current run: **N = 22** Fed markets (KXFED series), **~4,256** daily candlestick
+> observations. Outcomes are real Federal Reserve decisions.
 
 ### Setup (live data)
 
 | Field | Value |
 |-------|-------|
-| Script | `scripts/backfill-real-settled-markets.sh` |
-| Source | Kalshi REST API (`/markets?status=settled&category=fed`) |
-| Date range | 2024-01-01 → 2025-07-30 |
-| N settled markets | 23 |
-| N signal observations | 207 |
+| Script | `scripts/backfill-real-settled-markets.sh` or `meridian markets sync-settled` |
+| Source | Kalshi REST API + `/series/{ticker}/markets/{ticker}/candlesticks` |
+| N settled Fed markets | 22 |
+| N signal observations | ~4,256 |
 | Category | `fed` |
 
 ### Calibration (live settled markets)
 
-| Metric | Value | Baseline (p=0.5) | Vs synthetic backfill |
-|--------|-------|------------------|----------------------|
-| Brier score | 0.1381 | 0.2500 | ↓ (better by 0.004) |
-| Log loss | 0.3964 | 0.6931 | — |
-| Murphy reliability | 0.0162 | — | — |
-| Murphy resolution | 0.0831 | — | — |
-| ECE (10 bins) | 0.0318 | — | slight improvement |
+| Metric | Value | Baseline (p=0.5) |
+|--------|-------|------------------|
+| Brier score | 0.0560 | 0.2500 |
+| Log loss | 0.2116 | 0.6931 |
+| ECE (10 bins) | 0.1152 | — |
 
-Murphy decomposition: Brier = reliability − resolution + uncertainty
-(0.0162 − 0.0831 + 0.1050 = 0.1381).
-
-**Interpretation:** On 23 actually settled FOMC rate markets, Brier score 0.138 beats
-the climatology baseline by 44.7%. ECE 0.032 confirms the calibration is slightly
-better on real outcomes than on the synthetic backfill (ECE 0.034), consistent with
-the hypothesis that Kalshi prediction markets efficiently aggregate information
-about upcoming Federal Reserve decisions. The favourite-longshot bias persists in
-the 0.85–0.95 bin (predicted 0.88, realized 0.84 on 11 observations).
+**Interpretation:** On 22 actually settled KXFED markets, Brier score 0.056 beats
+the climatology baseline by 77.6%. Metrics computed from daily candlestick mid-prices
+via `GET /api/v1/calibration?category=fed` after `markets sync-settled`.
 
 ### Reliability diagram (live settled markets)
 

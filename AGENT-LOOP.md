@@ -1,6 +1,6 @@
 # Agent loop — Meridian
 
-How to run autonomous agent sessions until Phase 12 (admissions packaging) is complete.
+How to run autonomous agent sessions until `check-completion.sh` exits 0.
 
 ---
 
@@ -10,15 +10,15 @@ From any shell (runs in foreground; use `tmux` for detach):
 
 ```sh
 /srv/agent-platform/bin/agent-loop meridian-project \
-  "Read COMPLETION.md and docs/admissions-roadmap.md first. Run bash scripts/check-completion.sh. Work the first unchecked goal in COMPLETION.md section F (Phase 12). One goal per session unless blocked. Re-run check-completion.sh before ending. If exit 0, reply exactly: MERIDIAN COMPLETE — stopping."
+  "Read COMPLETION.md first. User deferred public deploy (D3) — do NOT work on Fly.io/Vercel deploy. Run bash scripts/check-completion.sh. If C gates fail, fix C first (seed news_events + run-full-pipeline.sh). Then work first unchecked F goal (F4, F1, F8, one F7, F5, F6, F9). Re-run check-completion.sh before ending. Reply MERIDIAN COMPLETE — stopping ONLY if check-completion.sh exit code is 0."
 ```
 
 **Recommended — detached tmux session:**
 
 ```sh
 tmux new-session -d -s agent-loop-meridian \
-  "/srv/agent-platform/bin/agent-loop meridian-project \
-  \"Read COMPLETION.md and docs/admissions-roadmap.md first. Run bash scripts/check-completion.sh. Work the first unchecked goal in COMPLETION.md section F (Phase 12). One goal per session unless blocked. Re-run check-completion.sh before ending. If exit 0, reply exactly: MERIDIAN COMPLETE — stopping.\""
+  '/srv/agent-platform/bin/agent-loop meridian-project \
+  "Read COMPLETION.md first. User deferred public deploy (D3) — do NOT work on Fly.io/Vercel deploy. Run bash scripts/check-completion.sh. If C gates fail, fix C first (seed news_events + run-full-pipeline.sh). Then work first unchecked F goal (F4, F1, F8, one F7, F5, F6, F9). Re-run check-completion.sh before ending. Reply MERIDIAN COMPLETE — stopping ONLY if check-completion.sh exit code is 0."'
 
 tmux attach -t agent-loop-meridian   # watch progress
 # Ctrl-b d to detach
@@ -68,7 +68,8 @@ bash scripts/check-completion.sh --code   # A + E + F file gates only
 F1/F2/F7 need DB + ingest:
 
 ```sh
-bash scripts/dev-up.sh
+make setup
+# or: bash scripts/dev-up.sh
 ```
 
 ---
@@ -76,6 +77,6 @@ bash scripts/dev-up.sh
 ## Read order for agents
 
 1. `COMPLETION.md` — goals and STOP rule
-2. `docs/admissions-roadmap.md` — Phase 12 context
+2. `docs/meridian-brief.md` — project summary and key results
 3. `AGENTS.md` — invariants and layout
-4. `TASKS.md` — Phase 12 task breakdown
+4. `TASKS.md` — phase task breakdown

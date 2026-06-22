@@ -29,6 +29,9 @@ uv run python -m meridian.cli analytics fedwatch --cme || true
 log "Arb: monitor + write signals"
 uv run python -m meridian.cli arb monitor --write-signals || true
 
+log "Backfill live settled markets from Kalshi for calibration"
+bash scripts/backfill-real-settled-markets.sh || true
+
 log "Analytics: calibrate (needs settled markets — may skip)"
 uv run python -m meridian.cli analytics calibrate --write-signals || true
 

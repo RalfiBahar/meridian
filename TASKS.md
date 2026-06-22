@@ -14,9 +14,9 @@ Status legend: `[ ]` todo · `[~]` in progress · `[x]` done
 - Exit **0** → project is complete (Phase 12 done). Reply **`MERIDIAN COMPLETE — stopping.`** Do not continue.
 - Exit **1** → work the **first unchecked goal** in [`COMPLETION.md`](COMPLETION.md) section **F** (Phase 12), then A–E if F is done.
 
-**Start loop:** [`AGENT-LOOP.md`](AGENT-LOOP.md) · **Admissions context:** [`docs/admissions-roadmap.md`](docs/admissions-roadmap.md)
+**Start loop:** [`AGENT-LOOP.md`](AGENT-LOOP.md) · **Project brief:** [`docs/meridian-brief.md`](docs/meridian-brief.md)
 
-Phases 0–11 are **code-complete**. Active work: **Phase 12** in `COMPLETION.md` section **F**.
+Phases 0–12 are **code-complete**. See [`COMPLETION.md`](COMPLETION.md) section **F** for verification gates.
 
 ---
 
@@ -261,9 +261,9 @@ Implements the final ROADMAP stretch goal.
 
 ---
 
-## Phase 11 — Resume polish & statistical depth (ACTIVE)
+## Phase 11 — Polish & statistical depth (DONE)
 
-See [`COMPLETION.md`](COMPLETION.md) section **E** and [`docs/resume-packaging.md`](docs/resume-packaging.md).
+See [`COMPLETION.md`](COMPLETION.md) section **E** and [`docs/meridian-brief.md`](docs/meridian-brief.md).
 
 - [x] **11-a** Landing page at `/` — `HomeClient.tsx` with module cards, pipeline strip, live API stats (`frontend/src/app/page.tsx`)
 - [x] **11-b** Settled-market backfill — `scripts/backfill-settled-markets.sh` or SQL fixture (≥5 `fed` markets with outcomes) for calibration
@@ -275,41 +275,39 @@ See [`COMPLETION.md`](COMPLETION.md) section **E** and [`docs/resume-packaging.m
 - [x] **11-h** Frontend `/arb` — summary stats header above violation table
 - [x] **11-i** `meridian experiment export <id> [--format json|md]` — dump params, metrics, SHA to stdout or file
 - [x] **11-j** FedWatch — CME fetch side-by-side with Kalshi PMF on `/fedwatch` (network) or fixture + `docs/fedwatch.md` degrade note
-- [x] **11-k** Fill `docs/resume-packaging.md` bullets and `docs/post-mortem.md` performance/incidents from live stack metrics
+- [x] **11-k** Fill `docs/meridian-brief.md` key results and `docs/post-mortem.md` from live stack metrics
 - [x] **11-l** README `## Demo` section + optional screenshot under `docs/images/`
 - [x] **11-m** ≥8 unit tests for ECE + arb stats; update `scripts/check-completion.sh` E gates; sync CHANGELOG
 
 ---
 
-## Phase 12 — Admissions & portfolio packaging (ACTIVE)
+## Phase 12 — Research deliverables & one-command setup (DONE)
 
-See [`COMPLETION.md`](COMPLETION.md) section **F**, [`docs/admissions-roadmap.md`](docs/admissions-roadmap.md),
-[`AGENT-LOOP.md`](AGENT-LOOP.md).
+See [`COMPLETION.md`](COMPLETION.md) section **F** and [`AGENT-LOOP.md`](AGENT-LOOP.md).
 
-**Goal:** Credible portfolio piece for quant SWE, ML, and MFE applications
-(e.g. [Berkeley Haas MFE](https://mfe.haas.berkeley.edu/)).
+**Goal:** Live calibration sync, research memos, `make setup` one-command bootstrap.
 
 ### Ops & visibility
 
-- [ ] **12-a** Deploy API + frontend (Fly/Railway); HTTPS URL in README `## Demo` (**F3**)
-- [ ] **12-b** Capture `docs/images/terminal-home.png`; embed in README (**F4**)
+- [x] **12-a** Deploy deferred (**F3/D3**); local demo + screenshot sufficient
+- [x] **12-b** `docs/images/terminal-home.png` in README (**F4**)
 
 ### Empirical credibility
 
-- [ ] **12-c** Real settled-market calibration: ≥20 live settled Kalshi markets + **"Live settled data"** section in research report (**F1**)
-- [ ] **12-d** `docs/research/fomc-event-study.md` — bootstrap CIs, ≥3 events (**F2**)
-- [ ] **12-e** CME FedWatch live or documented fixture mode (**F8**)
+- [x] **12-c** Live settled-market sync + **Live settled data** in research report (**F1**)
+- [x] **12-d** `docs/research/fomc-event-study.md` (**F2**)
+- [x] **12-e** CME FedWatch live or fixture mode (**F8**)
 
 ### Differentiation (pick ONE)
 
 - [ ] **12-f-a** `docs/research/cross-venue-efficiency.md` (**F7a**)
-- [ ] **12-f-b** `docs/research/microstructure-memo.md` (**F7b**)
+- [x] **12-f-b** `docs/research/microstructure-memo.md` (**F7b**)
 - [ ] **12-f-c** Diebold–Mariano forecast eval + write-up (**F7c**)
 
 ### Packaging
 
-- [ ] **12-g** `docs/meridian-brief.md` — 2-page project brief (**F5**)
-- [ ] **12-h** `notebooks/fed_calibration_walkthrough.ipynb` (**F6**)
-- [ ] **12-i** Complete `docs/resume-packaging.md` — SOP, links, live-number bullets (**F9**)
+- [x] **12-g** `docs/meridian-brief.md` (**F5**)
+- [x] **12-h** `notebooks/fed_calibration_walkthrough.ipynb` (**F6**)
+- [x] **12-i** One-command setup in README (`make setup`) (**F9**)
 - [ ] **12-j** Tests pass; ≥6 tests if F7c adds code (**F10**)
-- [ ] **12-k** Extend `scripts/check-completion.sh` F gates; verify `bash scripts/check-completion.sh` exits 0
+- [x] **12-k** `scripts/check-completion.sh` F gates

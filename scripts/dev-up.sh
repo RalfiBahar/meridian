@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
+# Load discovered ingest tickers for docker compose substitution.
+if [[ -f config/ingest.env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source config/ingest.env
+  set +a
+fi
+
 echo "==> Stopping host processes..."
 pkill -f "meridian.cli serve" 2>/dev/null || true
 pkill -f "meridian.cli ingest" 2>/dev/null || true
@@ -19,8 +27,8 @@ docker compose up -d --build --wait
 echo "==> Applying migrations..."
 uv run python -m meridian.cli migrate
 
-echo "==> Waiting 30s for ingest to populate markets..."
-sleep 30
+echo "==> Waiting 45s for ingest to populate markets..."
+sleep 45
 
 echo "==> Running analytics pipeline..."
 bash scripts/run-full-pipeline.sh

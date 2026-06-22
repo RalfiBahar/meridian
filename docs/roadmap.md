@@ -6,7 +6,7 @@ grade research platform with a quant-terminal frontend."
 Each phase ends with three things:
 
 1. A **deployable artifact** — something you can run and demo.
-2. A **resume bullet** — a specific, defensible accomplishment.
+2. An **outcome** — a specific, defensible accomplishment.
 3. **New math / stats / financial concepts** you can defend in an interview.
 
 Cadence is aggressive daily (compressing ~15 weeks of work into ~6–8 weeks
@@ -24,7 +24,7 @@ GitHub Actions CI (lint+typecheck, unit tests, integration smoke).
 
 **Artifact**: `make health` reports all services healthy, with versions.
 
-**Resume bullet**: *Bootstrapped a fully-tooled Python 3.12 async service:
+**Outcome**: *Bootstrapped a fully-tooled Python 3.12 async service:
 uv-managed dependencies, ruff (lint + format), mypy strict, pytest with
 separated unit/integration markers, Docker Compose stack (TimescaleDB +
 Redis with healthchecks), structlog JSON observability, pydantic-settings
@@ -50,7 +50,7 @@ Forward-only migration runner with SHA-256 checksums.
 **Artifact**: `make migrate` applies the schema, idempotent on re-run.
 `schema_migrations` records every applied version.
 
-**Resume bullet**: *Designed a cross-venue canonical event schema and an
+**Outcome**: *Designed a cross-venue canonical event schema and an
 idempotent forward-only SQL migration runner with checksum-based drift
 detection. The schema supports L1 quotes, L2 depth snapshots, fills,
 status transitions, and a generic signal stream that adds new analytics
@@ -77,7 +77,7 @@ vocabulary differs from response enum.
 `meridian kalshi orderbook KXFED-26JUN-T3.75` all work against live
 production with real Fed-rate data.
 
-**Resume bullet**: *Built an async Kalshi REST client with RSA-PSS request
+**Outcome**: *Built an async Kalshi REST client with RSA-PSS request
 signing using a 2048-bit RSA keypair, env-routed for demo and production
 environments. Typed Pydantic response models with Decimal-USD prices
 preserve exact precision over thousands of intraday updates. Live-verified
@@ -112,7 +112,7 @@ with exponential backoff. Per-stream sequence-gap detection emits
 **Artifact**: `meridian ingest kalshi --tickers ...` runs continuously,
 filling `ticks`, `book_snapshots`, `signals` from live data.
 
-**Resume bullet**: *Built a fault-tolerant Kalshi WebSocket ingestion
+**Outcome**: *Built a fault-tolerant Kalshi WebSocket ingestion
 worker normalizing streaming order-book data into a canonical event
 schema. Sequence-number gap detection with at-least-once delivery and
 idempotent writes provides effectively-exactly-once semantics. Pushes
@@ -136,7 +136,7 @@ a provisioned Grafana dashboard.
 **Artifact**: `meridian ingest polymarket --tickers ...` running in
 parallel; Grafana shows live ingestion metrics across both venues.
 
-**Resume bullet**: *Extended the ingestion layer to Polymarket's CLOB API
+**Outcome**: *Extended the ingestion layer to Polymarket's CLOB API
 using the same canonical event schema and idempotent write path, and
 shipped a Prometheus + Grafana observability layer monitoring ingestion
 lag, reconnect counts, and gap counts across both venues.*
@@ -161,7 +161,7 @@ upcoming terminal frontend (rendered in Phase 7); for now, a CLI
 `meridian analytics calibrate --category fed` that prints reliability
 metrics.
 
-**Resume bullet**: *Implemented a calibration engine evaluating
+**Outcome**: *Implemented a calibration engine evaluating
 prediction-market implied probabilities against realized outcomes via
 Brier-score Murphy decomposition and isotonic recalibration, evaluated
 over 10K+ resolved contracts.*
@@ -183,7 +183,7 @@ markets.
 **Artifact**: live arb monitor surfacing detected violations with
 severity (in basis points after fees) and depth-feasibility flag.
 
-**Resume bullet**: *Implemented a linear-programming-based no-arbitrage
+**Outcome**: *Implemented a linear-programming-based no-arbitrage
 consistency engine detecting price violations across related Kalshi /
 Polymarket contracts, with depth-and-fee-aware feasibility scoring.*
 
@@ -205,7 +205,7 @@ price and slippage.
 liquidity metrics over time, plus a backtester for arbitrary execution
 strategies.
 
-**Resume bullet**: *Built a market-microstructure analytics layer
+**Outcome**: *Built a market-microstructure analytics layer
 computing depth-weighted spreads, Kyle's lambda, and a historical
 book-replay execution simulator with realistic slippage modeling.*
 
@@ -228,7 +228,7 @@ efficiency latency" signal.
 **Artifact**: live Fed-rate panel showing the implied PMF for the next
 3 FOMC meetings, side-by-side with FedWatch.
 
-**Resume bullet**: *Derived implied probability distributions over future
+**Outcome**: *Derived implied probability distributions over future
 Federal Reserve rate decisions from Kalshi contract prices,
 cross-validated against CME FedWatch; quantified per-category market
 efficiency via Bayesian event-response latency analysis.*
@@ -253,7 +253,7 @@ shrinkage, walk-forward evaluation (never naive train/test).
 **Artifact**: a research-grade backtester with full provenance for every
 run, plus a CLI to manage experiment runs.
 
-**Resume bullet**: *Designed a reproducible research framework with
+**Outcome**: *Designed a reproducible research framework with
 provenance-tracked experiment runs, walk-forward backtesting, and
 Ledoit-Wolf-shrunk mean-variance portfolio optimization over detected
 market edges.*
@@ -276,7 +276,7 @@ OpenTelemetry traces, public demo deployment.
 implied probabilities and analytics from production Kalshi (and
 Polymarket) data.
 
-**Resume bullet**: *Built a real-time "quant terminal" frontend (Next.js
+**Outcome**: *Built a real-time "quant terminal" frontend (Next.js
 and WebSocket) visualizing implied probability curves, calibration drift,
 arbitrage opportunities, and Fed-rate distributions over a streaming
 backend pipeline.*
@@ -289,7 +289,7 @@ OpenTelemetry; rate limiting and auth at the gateway.
 
 ## Beyond Phase 7 — stretch goals
 
-Optional advanced features, each adding meaningful resume signal:
+Optional advanced features, each adding meaningful engineering depth:
 
 - **Regime detection**: HMM over volatility states per category.
 - **Anomaly detector**: unsupervised (isolation forest / autoencoder)
@@ -331,4 +331,4 @@ A live, public-demo `meridian.example.com` showing:
 - A research notebook section showing 1-2 hypotheses tested via
   walk-forward backtest with full provenance.
 
-That's the version you put on a resume.
+That's the version worth shipping as a portfolio-grade research platform.

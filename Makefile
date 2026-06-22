@@ -1,7 +1,8 @@
-.PHONY: help install up down reset logs ps health migrate test test-all lint format typecheck check docs
+.PHONY: help install setup up down reset logs ps health migrate test test-all lint format typecheck check docs
 
 help:
 	@echo "Meridian development commands:"
+	@echo "  make setup       one-command clone setup (deps + markets + full stack)"
 	@echo "  make install     sync dependencies via uv"
 	@echo "  make up          boot postgres+timescale and redis"
 	@echo "  make down        stop containers (preserves volumes)"
@@ -20,6 +21,9 @@ help:
 
 install:
 	uv sync
+
+setup:
+	bash scripts/setup.sh
 
 up:
 	docker compose up -d --wait

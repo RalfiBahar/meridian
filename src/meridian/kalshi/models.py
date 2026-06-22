@@ -32,6 +32,7 @@ class KalshiMarketStatus(StrEnum):
     ACTIVE = "active"
     CLOSED = "closed"
     SETTLED = "settled"
+    FINALIZED = "finalized"
     DEACTIVATED = "deactivated"
 
 
@@ -73,6 +74,10 @@ class KalshiMarket(BaseModel):
     volume: Decimal | None = Field(default=None, alias="volume_fp")
     volume_24h: Decimal | None = Field(default=None, alias="volume_24h_fp")
     open_interest: Decimal | None = Field(default=None, alias="open_interest_fp")
+
+    result: str | None = None
+    settlement_ts: AwareDatetime | None = None
+    settlement_value_dollars: Decimal | None = None
 
 
 class KalshiOrderbook(BaseModel):

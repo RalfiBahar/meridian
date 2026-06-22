@@ -248,7 +248,7 @@ export default function HomeClient({ stats }: { stats: HomeStats }) {
           Reports:{" "}
           <code style={{ color: "var(--text)" }}>docs/research/fed-calibration-report.md</code>
           {" · "}
-          <code style={{ color: "var(--text)" }}>docs/resume-packaging.md</code>
+          <code style={{ color: "var(--text)" }}>docs/meridian-brief.md</code>
         </p>
       </section>
 

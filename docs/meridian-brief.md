@@ -45,17 +45,16 @@ Polymarket ─┘         ↑
 
 ## Key results
 
-### Calibration (23 resolved Kalshi Fed-rate markets)
+### Calibration (22 live settled Kalshi Fed-rate markets)
 
 | Metric | Value | vs. Baseline (p=0.5) |
 |--------|-------|----------------------|
-| Brier score | **0.138** | beats by 44.7% |
-| ECE (10-bin) | **0.032** | well-calibrated |
-| Murphy reliability | 0.016 | low systematic error |
-| Walk-forward Sharpe | 0.82 | (60d train / 21d test) |
+| Brier score | **0.056** | beats by 77.6% |
+| ECE (10-bin) | **0.115** | moderate bin error |
+| Data source | Kalshi REST + daily candlesticks | `markets sync-settled` |
 
-Favourite-longshot bias visible: slight over-confidence in 0.85–0.95 probability bin.
-Isotonic recalibration reduces Brier to 0.120.
+Sync via `uv run python -m meridian.cli markets sync-settled --category fed`.
+See **Live settled data** in [`fed-calibration-report.md`](research/fed-calibration-report.md).
 
 ### No-arbitrage monitoring
 
@@ -109,7 +108,8 @@ Order book imbalance (OBI) correctly anticipates outcome direction in all
 ```sh
 git clone https://github.com/RalfiBahar/meridian
 cd meridian
-bash scripts/dev-up.sh
+cp .env.example .env   # Kalshi API key + PEM path
+make setup
 # Open http://localhost:3001
 ```
 
@@ -128,15 +128,3 @@ Screenshot: [`docs/images/terminal-home.png`](images/terminal-home.png)
 | [`docs/research/fomc-event-study.md`](research/fomc-event-study.md) | Event study: Δp\_mid, bootstrap CIs |
 | [`docs/research/microstructure-memo.md`](research/microstructure-memo.md) | Kyle λ, Amihud, regime-conditional spread |
 | [`notebooks/fed_calibration_walkthrough.ipynb`](../notebooks/fed_calibration_walkthrough.ipynb) | Reproducible Jupyter walkthrough |
-
----
-
-## CV bullets
-
-1. Built streaming ingest from Kalshi/Polymarket WebSockets into TimescaleDB
-   (500K+ ticks, idempotent writes, gap detection, Redis fan-out).
-2. Implemented calibration (Brier 0.138, ECE 0.032 on 23 resolved markets),
-   Murphy decomposition, cross-partition no-arb LP checks (~2.1 violations/day,
-   18 bps median), and walk-forward experiment harness (Sharpe 0.82).
-3. Shipped Quant Terminal (Next.js + FastAPI): live market scanner, arb monitor,
-   calibration drift, FedWatch panel — local demo: `bash scripts/dev-up.sh`.

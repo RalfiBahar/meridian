@@ -93,16 +93,21 @@ export interface ArbViolationsResponse {
 }
 
 export interface ReliabilityBin {
-  bin_center: number;
+  lower: number;
+  upper: number;
   mean_predicted: number;
   mean_realized: number;
   count: number;
 }
 
 export interface CalibrationResponse {
+  category: string | null;
+  n_markets: number;
+  n_observations: number;
   brier_score: number;
   log_loss: number;
-  n_resolved: number;
+  ece: number | null;
+  brier_after_isotonic: number | null;
   reliability_bins: ReliabilityBin[];
 }
 

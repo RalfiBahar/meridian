@@ -1,7 +1,7 @@
 # ROADMAP.md
 
 8-phase plan from "scaffolded repo" to "production-grade quant terminal."
-See `docs/roadmap.md` for the full narrative with resume bullets and concepts taught.
+See `docs/roadmap.md` for the full narrative with outcomes and concepts taught.
 
 ---
 

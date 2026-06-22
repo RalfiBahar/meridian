@@ -81,6 +81,7 @@ class KalshiClient:
         cursor: str | None = None,
         status: str | None = None,
         event_ticker: str | None = None,
+        series_ticker: str | None = None,
     ) -> tuple[list[KalshiMarket], str | None]:
         """List markets.
 
@@ -97,6 +98,8 @@ class KalshiClient:
             params["status"] = status
         if event_ticker:
             params["event_ticker"] = event_ticker
+        if series_ticker:
+            params["series_ticker"] = series_ticker
         data = await self._request("GET", "/markets", params=params)
         markets = [KalshiMarket.model_validate(m) for m in data.get("markets", [])]
         next_cursor = data.get("cursor") or None
@@ -110,3 +113,48 @@ class KalshiClient:
         data = await self._request("GET", f"/markets/{ticker}/orderbook")
         # Kalshi wraps the L2 book under "orderbook_fp".
         return KalshiOrderbook.model_validate(data.get("orderbook_fp", {}))
+
+    async def list_markets_all(
+        self,
+        *,
+        status: str | None = None,
+        series_ticker: str | None = None,
+        page_size: int = 200,
+        max_pages: int = 20,
+    ) -> list[KalshiMarket]:
+        """Paginate through /markets until cursor is exhausted or max_pages hit."""
+        out: list[KalshiMarket] = []
+        cursor: str | None = None
+        for _ in range(max_pages):
+            batch, cursor = await self.list_markets(
+                limit=page_size,
+                cursor=cursor,
+                status=status,
+                series_ticker=series_ticker,
+            )
+            out.extend(batch)
+            if not cursor:
+                break
+        return out
+
+    async def get_candlesticks(
+        self,
+        series_ticker: str,
+        ticker: str,
+        *,
+        start_ts: int,
+        end_ts: int,
+        period_interval: int = 1440,
+    ) -> list[dict[str, Any]]:
+        """Daily/hourly/minute OHLC candlesticks for one market."""
+        data = await self._request(
+            "GET",
+            f"/series/{series_ticker}/markets/{ticker}/candlesticks",
+            params={
+                "start_ts": start_ts,
+                "end_ts": end_ts,
+                "period_interval": period_interval,
+            },
+        )
+        sticks = data.get("candlesticks", [])
+        return sticks if isinstance(sticks, list) else []

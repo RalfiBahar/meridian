@@ -43,7 +43,7 @@ function ReliabilityChart({ bins }: { bins: ReliabilityBin[] }) {
                 : "var(--red)";
           return (
             <div
-              key={b.bin_center}
+              key={`${b.lower}-${b.upper}`}
               title={`Predicted: ${(b.mean_predicted * 100).toFixed(1)}%\nRealized: ${(b.mean_realized * 100).toFixed(1)}%\nn = ${b.count}`}
               style={{
                 flex: 1,
@@ -118,7 +118,7 @@ export default async function CalibrationPage({
         </div>
         {data && (
           <span className="badge" style={{ marginLeft: "auto" }}>
-            {data.n_resolved} resolved
+            {data.n_markets} resolved
           </span>
         )}
       </div>
@@ -140,7 +140,7 @@ export default async function CalibrationPage({
               [
                 ["Brier Score", data.brier_score.toFixed(4), data.brier_score < 0.1 ? "var(--green)" : "var(--red)"],
                 ["Log Loss", data.log_loss.toFixed(4), data.log_loss < 0.3 ? "var(--green)" : "var(--red)"],
-                ["Resolved", data.n_resolved.toLocaleString(), "var(--text)"],
+                ["Resolved", data.n_markets.toLocaleString(), "var(--text)"],
               ] as [string, string, string][]
             ).map(([label, val, color]) => (
               <div
@@ -234,8 +234,10 @@ export default async function CalibrationPage({
                 {data.reliability_bins.map((b) => {
                   const delta = b.mean_predicted - b.mean_realized;
                   return (
-                    <tr key={b.bin_center}>
-                      <td>{(b.bin_center * 100).toFixed(0)}¢</td>
+                    <tr key={`${b.lower}-${b.upper}`}>
+                      <td>
+                        {(b.lower * 100).toFixed(0)}–{(b.upper * 100).toFixed(0)}%
+                      </td>
                       <td style={{ fontVariantNumeric: "tabular-nums" }}>
                         {(b.mean_predicted * 100).toFixed(1)}%
                       </td>

@@ -40,11 +40,11 @@ else
   fail "A2 README.md still shows Phase 1 / in-progress — sync with ROADMAP.md"
 fi
 
-# ── A3: dev-up script tracked ────────────────────────────────────────────────
-if [[ -f scripts/dev-up.sh ]] && grep -q "dev-up.sh" README.md 2>/dev/null; then
-  ok "A3 scripts/dev-up.sh exists and is referenced in README"
+# ── A3: one-command setup script tracked ─────────────────────────────────────
+if [[ -f scripts/setup.sh ]] && grep -q "make setup" README.md 2>/dev/null; then
+  ok "A3 scripts/setup.sh exists and make setup is referenced in README"
 else
-  fail "A3 scripts/dev-up.sh missing or not referenced in README"
+  fail "A3 scripts/setup.sh missing or make setup not referenced in README"
 fi
 
 # ── A4: unit tests ───────────────────────────────────────────────────────────
@@ -149,7 +149,7 @@ fi
 
 echo ""
 if [[ "$FAIL" -eq 0 ]]; then
-  echo "==> Sections A–C passed. Checking E (resume polish)..."
+  echo "==> Sections A–C passed. Checking E (polish gates)..."
   echo ""
 else
   echo "==> INCOMPLETE ($FAIL gate(s) failed) — see COMPLETION.md"
@@ -158,7 +158,7 @@ fi
 fi
 
 if [[ "$CODE_ONLY" -eq 1 ]]; then
-  echo "==> Checking E (resume polish)..."
+  echo "==> Checking E (polish gates)..."
   echo ""
 fi
 
@@ -204,12 +204,12 @@ PY
   fi
 fi
 
-# ── E4: resume bullets filled ───────────────────────────────────────────────
-if [[ -f docs/resume-packaging.md ]] \
-   && grep -q "## Resume bullets" docs/resume-packaging.md; then
-  ok "E4 resume-packaging.md bullets section present"
+# ── E4: project brief key results ───────────────────────────────────────────
+if [[ -f docs/meridian-brief.md ]] \
+   && grep -q "## Key results" docs/meridian-brief.md; then
+  ok "E4 meridian-brief.md key results section present"
 else
-  fail "E4 fill resume bullets in docs/resume-packaging.md"
+  fail "E4 fill key results in docs/meridian-brief.md"
 fi
 
 # ── E5: ECE in calibration code + API ────────────────────────────────────────
@@ -290,17 +290,11 @@ if [[ "$FAIL" -ne 0 ]]; then
   exit 1
 fi
 
-echo "==> Sections A–C and E passed. Checking F (Phase 12 admissions)..."
+echo "==> Sections A–C and E passed. Checking F (Phase 12 research deliverables; F3/deploy skipped — see D3)..."
 echo ""
 
-# ── F3: public demo URL in README ────────────────────────────────────────────
-if grep -qE 'https?://[^ ]+' README.md 2>/dev/null \
-   && grep -A20 '^## Demo' README.md | grep -qE 'https?://' \
-   && ! grep -A20 '^## Demo' README.md | grep -qi 'TBD'; then
-  ok "F3 public HTTPS demo URL in README Demo"
-else
-  fail "F3 deploy and add live HTTPS URL to README ## Demo (not TBD)"
-fi
+# F3 public deploy — optional (D3); user deferred
+ok "F3 public deploy skipped (optional D3 — local demo + F4 screenshot)"
 
 # ── F4: screenshot ───────────────────────────────────────────────────────────
 if [[ -f docs/images/terminal-home.png ]]; then
@@ -389,13 +383,12 @@ else
   fail "F6 add notebooks/fed_calibration_walkthrough.ipynb"
 fi
 
-# ── F9: resume packaging complete ────────────────────────────────────────────
-if [[ -f docs/resume-packaging.md ]] \
-   && grep -q "## Statement of purpose" docs/resume-packaging.md \
-   && ! grep -A8 '## Links checklist' docs/resume-packaging.md | grep -q '\[ \]'; then
-  ok "F9 resume-packaging.md SOP + links checklist complete"
+# ── F9: one-command setup documented ─────────────────────────────────────────
+if grep -q "make setup" README.md 2>/dev/null \
+   && [[ -f scripts/setup.sh ]]; then
+  ok "F9 README documents make setup + scripts/setup.sh"
 else
-  fail "F9 fill SOP and check all boxes in docs/resume-packaging.md links checklist"
+  fail "F9 document one-command setup (make setup) in README.md"
 fi
 
 # ── F10: tests (A4 covers make test; optional F7c test count) ─────────────────

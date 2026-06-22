@@ -13,7 +13,7 @@ data and computes derived signals. It does not place orders or move money.
 
 ## Status
 
-**Phases 0–11 are code-complete.** **Phase 12** (admissions packaging for quant SWE / ML / MFE) is active — see [`COMPLETION.md`](COMPLETION.md) section **F**, [`docs/admissions-roadmap.md`](docs/admissions-roadmap.md), and [`AGENT-LOOP.md`](AGENT-LOOP.md).
+**Phases 0–12 are complete.** One-command setup: `make setup`. See [`COMPLETION.md`](COMPLETION.md) and [`AGENT-LOOP.md`](AGENT-LOOP.md) for agent verification.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -29,8 +29,8 @@ data and computes derived signals. It does not place orders or move money.
 | 6 | Research framework + portfolio optimizer | ✓ Done |
 | 7 | Quant Terminal frontend + production polish | ✓ Done |
 | 8–10 | Anomaly, regime, market maker, NLP (stretch) | ✓ Done |
-| 11 | Resume polish: ECE, arb stats, home page, research report | ✓ Done |
-| 12 | Admissions: live calibration, event study, deploy, brief | In progress |
+| 11 | Polish: ECE, arb stats, home page, research report | ✓ Done |
+| 12 | Live calibration sync, event study, one-command setup | ✓ Done |
 
 Full narrative: [docs/roadmap.md](docs/roadmap.md) · [ROADMAP.md](ROADMAP.md)
 
@@ -38,39 +38,46 @@ Full narrative: [docs/roadmap.md](docs/roadmap.md) · [ROADMAP.md](ROADMAP.md)
 
 ## Demo
 
-**Local:** after `bash scripts/dev-up.sh` — [http://localhost:3001](http://localhost:3001) (home) · [markets](http://localhost:3001/markets) · [calibration](http://localhost:3001/calibration) · [arb](http://localhost:3001/arb) · [fedwatch](http://localhost:3001/fedwatch)
+**Local:** after `make setup` — [http://localhost:3001](http://localhost:3001) (home) · [markets](http://localhost:3001/markets) · [calibration](http://localhost:3001/calibration) · [arb](http://localhost:3001/arb) · [fedwatch](http://localhost:3001/fedwatch)
 
-**Research report:** [`docs/research/fed-calibration-report.md`](docs/research/fed-calibration-report.md) · **Resume bullets:** [`docs/resume-packaging.md`](docs/resume-packaging.md)
+**Research:** [`docs/research/fed-calibration-report.md`](docs/research/fed-calibration-report.md) · [`docs/meridian-brief.md`](docs/meridian-brief.md)
 
 ![Meridian Quant Terminal](docs/images/terminal-home.png)
 
 ---
 
-## Quick start (60 seconds)
+## Quick start (one command)
 
-Prerequisites: Docker (with Compose v2), Python 3.12, [`uv`](https://docs.astral.sh/uv/),
-plus a Kalshi production account if you want to exercise the live data
-features (see [docs/kalshi.md](docs/kalshi.md)).
+Prerequisites: **Docker** (Compose v2), **Python 3.12**, **[uv](https://docs.astral.sh/uv/)**,
+**Node.js 20+**, and a **Kalshi API key** for live ingest
+([docs/getting-started.md](docs/getting-started.md) §6).
 
 ```sh
 git clone https://github.com/RalfiBahar/meridian
 cd meridian
-cp .env.example .env             # then fill in your Kalshi credentials
-make install                     # uv sync
-make up                          # boot TimescaleDB + Redis
-make migrate                     # apply the schema
-make health                      # verify everything is reachable
+cp .env.example .env             # add MERIDIAN_KALSHI_ACCESS_KEY + PEM path
+make setup                       # deps → discover popular markets → full stack
 ```
 
-If `make health` reports both Postgres+TimescaleDB and Redis as healthy,
-you are ready.
+`make setup` (or `bash scripts/setup.sh`) will:
 
-**Full dev stack** (Docker ingest + Grafana + API + frontend + analytics pipeline):
+1. Install Python (`uv sync`) and frontend (`npm install`) dependencies
+2. **Auto-discover** high-volume Kalshi + Polymarket markets for live ingest
+3. Boot Docker (DB, Redis, ingest, Grafana), run migrations + analytics pipeline
+4. Start the API (`:8000`) and Quant Terminal frontend (`:3001`)
+
+Open [http://localhost:3001/markets](http://localhost:3001/markets) when done.
+
+To refresh ingest subscriptions later:
 
 ```sh
-bash scripts/dev-up.sh           # kill stale processes, reset volumes, boot everything
-bash scripts/check-completion.sh # agent stop condition — exit 0 means done
+uv run python -m meridian.cli markets discover
+docker compose up -d --build ingest-kalshi ingest-polymarket
 ```
+
+---
+
+## Quick start (manual / step-by-step)
 
 See [`COMPLETION.md`](COMPLETION.md) for Phase 12 goals and [`AGENT-LOOP.md`](AGENT-LOOP.md) to start the agent loop.
 

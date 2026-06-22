@@ -30,6 +30,7 @@ coverage.xml
 .env
 .env.*
 !.env.example
+config/ingest.env
 
 # IDE
 .vscode/

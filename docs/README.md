@@ -14,8 +14,8 @@ Read these in order if you're new to the project:
 5. **[concepts.md](concepts.md)** — Financial and statistical concepts the
    project implements: order book mechanics, implied probability extraction,
    microprice, the math of binary contract pricing, and a glossary.
-6. **[roadmap.md](roadmap.md)** — The 8-phase plan, what each phase delivers,
-   the math/stats learned, and resume bullets per phase.
+6. **[roadmap.md](roadmap.md)** — The phase plan, what each phase delivers,
+   and the math/stats learned per phase.
 
 ## Quick links
 
@@ -25,5 +25,5 @@ Read these in order if you're new to the project:
 - **"What does this Kalshi field mean?"** → [kalshi.md](kalshi.md)
 - **"What's a microprice?"** → [concepts.md](concepts.md)
 - **"What's coming next?"** → [roadmap.md](roadmap.md)
-- **CV / MFE applications (Phase 12)?** → [admissions-roadmap.md](admissions-roadmap.md) · [resume-packaging.md](resume-packaging.md)
+- **Research summary?** → [meridian-brief.md](meridian-brief.md) · [research/](research/)
 - **Start agent loop?** → [../AGENT-LOOP.md](../AGENT-LOOP.md)
