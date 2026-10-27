@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ---------------------------------------------------------------------------
 # Market endpoints
@@ -132,6 +132,12 @@ class CalibrationResponse(BaseModel):
     ece: float | None
     brier_after_isotonic: float | None
     reliability_bins: list[ReliabilityBinModel]
+    evaluation_method: str = "in_sample_all_ticks"
+    observation_unit: str = "p_mid_tick"
+    isotonic_method: str = "in_sample_fit_on_scored_ticks"
+    brier_isotonic_in_sample: float | None = None
+    n_train_markets: int | None = None
+    n_test_markets: int | None = None
 
 
 class ArbStats(BaseModel):
@@ -155,6 +161,9 @@ class FedPMFModel(BaseModel):
     strikes: list[float]
     probabilities: list[float]
     raw_p_mid: list[float]
+    consistent: bool = True
+    issues: list[str] = Field(default_factory=list)
+    contract_definition: str = ""
 
 
 class FedWatchResponse(BaseModel):

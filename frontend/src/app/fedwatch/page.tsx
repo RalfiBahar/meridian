@@ -231,6 +231,17 @@ async function ActiveDetail({ date }: { date: string }) {
       <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 12 }}>
         STRIKE TABLE — {date}
       </div>
+      {kalshi.contract_definition && (
+        <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 8, maxWidth: 640 }}>
+          {kalshi.contract_definition}
+        </div>
+      )}
+      {kalshi.consistent === false && (
+        <div style={{ color: "var(--red)", fontSize: 11, marginBottom: 8 }}>
+          Survival quotes are not a valid distribution
+          {kalshi.issues?.length ? `: ${kalshi.issues.join("; ")}` : "."}
+        </div>
+      )}
       <table style={{ maxWidth: 500 }}>
         <thead>
           <tr>

@@ -142,20 +142,23 @@ async def test_depth_weighted_prob_bid_ask() -> None:
     # weighted_bid = (0.50*100 + 0.49*50) / 150 = (50 + 24.5) / 150 ≈ 0.4967
     # weighted_ask = (0.52*100 + 0.53*50) / 150 = (52 + 26.5) / 150 ≈ 0.5233
     # midpoint ≈ 0.51
-    assert 0.50 < float(result) < 0.52
+    # Polymarket bid/ask prices are already outcome prices: midpoint is 0.51.
+    # Complementing those asks would not produce 0.51.
+    assert result is not None
+    assert abs(float(result) - 0.51) < 1e-9
 
 
 async def test_depth_weighted_prob_yes_no_sides() -> None:
-    """Kalshi yes/no sides map correctly to bid/ask for weighting."""
+    """A Kalshi NO bid is a YES ask at 1 - price."""
     book_rows = [
         {"side": "yes", "price": "0.55", "size": "200"},
         {"side": "no", "price": "0.45", "size": "200"},
     ]
     pool = _MockPool(_MockConn(book_rows=book_rows))
     result = await _depth_weighted_prob(pool, _MARKET_ID)  # type: ignore[arg-type]
-    # weighted_bid (yes) = 0.55, weighted_ask (no) = 0.45 → midpoint = 0.50
+    # YES bid 0.55. NO bid 0.45 -> YES ask 0.55. Both sides sit at 0.55.
     assert result is not None
-    assert abs(float(result) - 0.50) < 1e-9
+    assert abs(float(result) - 0.55) < 1e-9
 
 
 async def test_depth_weighted_prob_none_if_empty() -> None:
@@ -256,6 +259,7 @@ async def test_write_signals_calls_executemany() -> None:
         microprice=None,
         depth_weighted_prob=None,
     )
+
     # All None → no DB call.
     class _TrackConn:
         def __init__(self) -> None:

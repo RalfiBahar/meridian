@@ -12,9 +12,11 @@ them to the `signals` table.  Four signals are produced per market per run:
                         requires at least one level on each side in the latest
                         book snapshot; NULL otherwise
 
-All five are written as separate rows in `signals`.  Writes use
-`ON CONFLICT DO NOTHING` — re-running the extractor over an already-covered
-time window is safe.
+All five are written as separate rows in `signals`.  The insert says
+`ON CONFLICT DO NOTHING`, but `signals` has no unique key, so a rerun can
+insert another row. Quote bid and ask are already YES prices (Kalshi's
+ticker channel publishes `yes_bid` and `yes_ask`). Depth weighting of a
+Kalshi book complements NO bids; see `yes_book.py`.
 """
 
 from __future__ import annotations
@@ -27,6 +29,8 @@ from typing import Any
 from uuid import UUID
 
 import asyncpg
+
+from meridian.analytics.yes_book import depth_weighted_yes_probability
 
 # ---------------------------------------------------------------------------
 # Result types
@@ -154,29 +158,8 @@ async def _depth_weighted_prob(
     if not rows:
         return None
 
-    bid_sides = ("bid", "yes")
-    ask_sides = ("ask", "no")
-    bid_levels = [
-        (Decimal(str(r["price"])), Decimal(str(r["size"]))) for r in rows if r["side"] in bid_sides
-    ]
-    ask_levels = [
-        (Decimal(str(r["price"])), Decimal(str(r["size"]))) for r in rows if r["side"] in ask_sides
-    ]
-
-    if not bid_levels or not ask_levels:
-        return None
-
-    total_bid_size = sum(s for _, s in bid_levels)
-    total_ask_size = sum(s for _, s in ask_levels)
-
-    if total_bid_size == 0 or total_ask_size == 0:
-        return None
-
-    # Size-weighted average price on each side.
-    weighted_bid = sum(p * s for p, s in bid_levels) / total_bid_size
-    weighted_ask = sum(p * s for p, s in ask_levels) / total_ask_size
-
-    return (weighted_bid + weighted_ask) / 2
+    levels = [(str(r["side"]), Decimal(str(r["price"])), Decimal(str(r["size"]))) for r in rows]
+    return depth_weighted_yes_probability(levels)
 
 
 def _midprice(bid: Decimal | None, ask: Decimal | None) -> Decimal | None:

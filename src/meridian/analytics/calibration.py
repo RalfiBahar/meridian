@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -50,13 +51,23 @@ class CalibrationResult:
     brier_score: float
     log_loss: float
     reliability_bins: list[ReliabilityBin]
-    # Isotonic-recalibrated Brier score (how much isotonic recalibration helps)
+    # Isotonic Brier. For run_calibration this is in-sample. For
+    # run_temporal_calibration it is the held-out score. Read isotonic_method.
     brier_after_isotonic: float | None
     # Expected calibration error (ECE) over 10 equal-width bins
     ece: float | None = None
+    evaluation_method: str = "in_sample_all_ticks"
+    observation_unit: str = "p_mid_tick"
+    isotonic_method: str = "in_sample_fit_on_scored_ticks"
+    brier_isotonic_in_sample: float | None = None
+    n_train_markets: int | None = None
+    n_test_markets: int | None = None
+    evaluation_start: datetime | None = None
 
     def summary(self) -> str:
         lines = [
+            f"Evaluation:        {self.evaluation_method}",
+            f"Observation unit:  {self.observation_unit}",
             f"Category:          {self.category or 'all'}",
             f"Lookback:          {self.lookback_days or 'all'} days",
             f"Markets:           {self.n_markets}",
@@ -64,10 +75,20 @@ class CalibrationResult:
             f"Brier score:       {self.brier_score:.4f}",
             f"Log loss:          {self.log_loss:.4f}",
         ]
+        if self.evaluation_start is not None:
+            lines.append(f"Eval start:        {self.evaluation_start.isoformat()}")
+        if self.n_train_markets is not None:
+            lines.append(f"Train markets:     {self.n_train_markets}")
+        if self.n_test_markets is not None:
+            lines.append(f"Test markets:      {self.n_test_markets}")
         if self.ece is not None:
             lines.append(f"ECE (10-bin):      {self.ece:.4f}")
         if self.brier_after_isotonic is not None:
-            lines.append(f"Brier (isotonic):  {self.brier_after_isotonic:.4f}")
+            lines.append(
+                f"Brier (isotonic):  {self.brier_after_isotonic:.4f} [{self.isotonic_method}]"
+            )
+        if self.brier_isotonic_in_sample is not None:
+            lines.append(f"Brier (isotonic, train): {self.brier_isotonic_in_sample:.4f}")
         lines.append("\nReliability bins:")
         for b in self.reliability_bins:
             lines.append(
@@ -154,7 +175,7 @@ def expected_calibration_error(
 ) -> float:
     """Expected calibration error (ECE) using n_bins equal-width bins.
 
-    ECE = Σ_b (|mean_predicted_b − mean_realized_b|) × (n_b / N)
+    ECE = sum_b (|mean_predicted_b - mean_realized_b|) * (n_b / N)
 
     A perfectly calibrated forecaster has ECE = 0.
     """
@@ -169,14 +190,175 @@ def isotonic_recalibrate(
     probabilities: npt.NDArray[np.float64],
     outcomes: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
-    """Fit isotonic regression and return recalibrated probabilities.
+    """Fit isotonic regression on these rows and return the in-sample fitted values.
 
-    Isotonic regression is a non-parametric monotone transformation that
-    minimises squared error subject to monotonicity — a common post-hoc
-    calibration method.
+    ``fit_transform`` scores the same observations it trains on. That number
+    is an in-sample fit statistic. Held-out scoring is
+    ``evaluate_temporal_holdout``.
     """
-    iso = IsotonicRegression(out_of_bounds="clip")
+    iso = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
     return iso.fit_transform(probabilities, outcomes)  # type: ignore[no-any-return]
+
+
+def fit_isotonic(
+    probabilities: npt.NDArray[np.float64],
+    outcomes: npt.NDArray[np.float64],
+) -> IsotonicRegression:
+    """Fit a monotone map. The model is applied with ``apply_isotonic``."""
+    if len(probabilities) < 2:
+        raise ValueError("isotonic regression needs at least two training rows")
+    if len(probabilities) != len(outcomes):
+        raise ValueError("probabilities and outcomes must have the same length")
+    model = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
+    model.fit(probabilities, outcomes)
+    return model
+
+
+def apply_isotonic(
+    model: IsotonicRegression,
+    probabilities: npt.NDArray[np.float64],
+) -> npt.NDArray[np.float64]:
+    """Apply a fitted isotonic map and clip the result to [0, 1]."""
+    predicted = np.asarray(model.predict(probabilities), dtype=np.float64)
+    return np.clip(predicted, 0.0, 1.0)
+
+
+@dataclass(frozen=True)
+class MarketForecast:
+    """One pre-settlement forecast for one market.
+
+    ``forecast_ts`` is the timestamp of the quote. It is not after
+    ``settlement_ts``. The outcome is the market's settled 0/1 value.
+    """
+
+    market_id: UUID
+    settlement_ts: datetime
+    forecast_ts: datetime
+    probability: float
+    outcome: float
+
+
+@dataclass(frozen=True)
+class TemporalCalibration:
+    """Held-out scores for one settlement-time split.
+
+    Training markets are those with ``settlement_ts < evaluation_start``.
+    Scored markets settled at or after that instant. Isotonic regression is
+    fit only on the training markets. ``oos_brier`` is the raw forecast on
+    the scored markets, before any recalibration.
+    """
+
+    evaluation_start: datetime
+    n_train: int
+    n_test: int
+    oos_brier: float
+    oos_log_loss: float
+    oos_ece: float
+    oos_bins: list[ReliabilityBin]
+    oos_isotonic_brier: float | None
+    in_sample_isotonic_brier: float | None
+
+
+def point_in_time_forecast(
+    quotes: Sequence[tuple[datetime, float]],
+    as_of: datetime,
+) -> tuple[datetime, float] | None:
+    """Last finite quote at or before ``as_of``.
+
+    Later quotes are ignored. Naive timestamps are ignored so they cannot
+    be compared with an aware cutoff.
+    """
+    if as_of.tzinfo is None:
+        raise ValueError("as_of must be timezone-aware")
+    eligible = [
+        (ts, probability)
+        for ts, probability in quotes
+        if ts.tzinfo is not None and ts <= as_of and math.isfinite(probability)
+    ]
+    if not eligible:
+        return None
+    eligible.sort(key=lambda item: item[0])
+    return eligible[-1]
+
+
+def select_market_forecast(
+    market_id: UUID,
+    settlement_ts: datetime,
+    outcome: float,
+    quotes: Sequence[tuple[datetime, float]],
+) -> MarketForecast | None:
+    """One forecast per market: the last p_mid at or before settlement.
+
+    A quote after settlement is not eligible. Markets with no earlier quote,
+    a non-binary outcome, or a probability outside [0, 1] are dropped.
+    """
+    if settlement_ts.tzinfo is None:
+        raise ValueError("settlement_ts must be timezone-aware")
+    if outcome not in (0.0, 1.0):
+        return None
+    chosen = point_in_time_forecast(quotes, settlement_ts)
+    if chosen is None:
+        return None
+    forecast_ts, probability = chosen
+    if not 0.0 <= probability <= 1.0:
+        return None
+    return MarketForecast(
+        market_id=market_id,
+        settlement_ts=settlement_ts,
+        forecast_ts=forecast_ts,
+        probability=probability,
+        outcome=outcome,
+    )
+
+
+def evaluate_temporal_holdout(
+    forecasts: Sequence[MarketForecast],
+    *,
+    evaluation_start: datetime,
+    n_bins: int = 10,
+) -> TemporalCalibration | None:
+    """Score markets settled on or after ``evaluation_start``.
+
+    Returns None when that held-out set is empty. Duplicate market ids are
+    rejected: the observation is one forecast per market, not one per tick.
+    """
+    if evaluation_start.tzinfo is None:
+        raise ValueError("evaluation_start must be timezone-aware")
+    ids = [forecast.market_id for forecast in forecasts]
+    if len(ids) != len(set(ids)):
+        raise ValueError("temporal calibration requires one forecast per market_id")
+
+    ordered = sorted(
+        forecasts,
+        key=lambda forecast: (forecast.settlement_ts, str(forecast.market_id)),
+    )
+    train = [forecast for forecast in ordered if forecast.settlement_ts < evaluation_start]
+    test = [forecast for forecast in ordered if forecast.settlement_ts >= evaluation_start]
+    if not test:
+        return None
+
+    test_p = np.array([forecast.probability for forecast in test], dtype=np.float64)
+    test_o = np.array([forecast.outcome for forecast in test], dtype=np.float64)
+    oos_iso: float | None = None
+    in_sample_iso: float | None = None
+    if len(train) >= 2:
+        train_p = np.array([forecast.probability for forecast in train], dtype=np.float64)
+        train_o = np.array([forecast.outcome for forecast in train], dtype=np.float64)
+        model = fit_isotonic(train_p, train_o)
+        oos_iso = brier_score(apply_isotonic(model, test_p), test_o)
+        in_sample_iso = brier_score(apply_isotonic(model, train_p), train_o)
+
+    return TemporalCalibration(
+        evaluation_start=evaluation_start,
+        n_train=len(train),
+        n_test=len(test),
+        oos_brier=brier_score(test_p, test_o),
+        oos_log_loss=log_loss(test_p, test_o),
+        oos_ece=expected_calibration_error(test_p, test_o, n_bins=n_bins),
+        oos_bins=reliability_diagram(test_p, test_o, n_bins=n_bins),
+        oos_isotonic_brier=oos_iso,
+        in_sample_isotonic_brier=in_sample_iso,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -235,6 +417,63 @@ async def run_calibration(
         reliability_bins=rel,
         brier_after_isotonic=brier_iso,
         ece=ece,
+        evaluation_method="in_sample_all_ticks",
+        observation_unit="p_mid_tick",
+        isotonic_method="in_sample_fit_on_scored_ticks",
+    )
+
+
+async def run_temporal_calibration(
+    pool: asyncpg.Pool,
+    *,
+    evaluation_start: datetime,
+    category: str | None = None,
+    n_bins: int = 10,
+) -> CalibrationResult | None:
+    """Score one pre-settlement forecast per market on a later settlement cohort.
+
+    Markets with no ``settled_at``, or with no ``p_mid`` at or before that
+    time, are omitted. The Brier score, ECE, and reliability bins on the
+    returned result are out of sample. ``brier_after_isotonic`` is the
+    isotonic map fit on earlier settlements and applied to the held-out
+    markets. ``brier_isotonic_in_sample`` is the same map scored on the
+    training markets and is not an out-of-sample number.
+    """
+    if evaluation_start.tzinfo is None:
+        raise ValueError("evaluation_start must be timezone-aware")
+    markets = await _resolved_markets_with_time(pool, category=category)
+    forecasts: list[MarketForecast] = []
+    for market_id, outcome, settled_at in markets:
+        quotes = await _market_pmid_series(pool, market_id)
+        selected = select_market_forecast(market_id, settled_at, outcome, quotes)
+        if selected is not None:
+            forecasts.append(selected)
+
+    held_out = evaluate_temporal_holdout(
+        forecasts,
+        evaluation_start=evaluation_start,
+        n_bins=n_bins,
+    )
+    if held_out is None:
+        return None
+
+    return CalibrationResult(
+        category=category,
+        lookback_days=None,
+        n_markets=held_out.n_test,
+        n_observations=held_out.n_test,
+        brier_score=held_out.oos_brier,
+        log_loss=held_out.oos_log_loss,
+        reliability_bins=held_out.oos_bins,
+        brier_after_isotonic=held_out.oos_isotonic_brier,
+        ece=held_out.oos_ece,
+        evaluation_method="out_of_sample_markets_settled_on_or_after_cutoff",
+        observation_unit="one_p_mid_per_market_at_or_before_settlement",
+        isotonic_method="fit_on_earlier_settlements_scored_on_later_markets",
+        brier_isotonic_in_sample=held_out.in_sample_isotonic_brier,
+        n_train_markets=held_out.n_train,
+        n_test_markets=held_out.n_test,
+        evaluation_start=evaluation_start,
     )
 
 
@@ -248,7 +487,14 @@ async def write_calibration_signals(
     (as JSONB metadata).
     """
     now = datetime.now(tz=UTC)
-    category_meta = json.dumps({"category": result.category, "lookback_days": result.lookback_days})
+    category_meta = json.dumps(
+        {
+            "category": result.category,
+            "lookback_days": result.lookback_days,
+            "evaluation_method": result.evaluation_method,
+            "observation_unit": result.observation_unit,
+        }
+    )
     records: list[tuple[Any, ...]] = [
         (now, None, "calibration_brier", result.brier_score, category_meta, now),
         (now, None, "calibration_log_loss", result.log_loss, category_meta, now),
@@ -327,3 +573,52 @@ async def _market_pmid_history(
         for r in rows
         if r["value"] is not None and math.isfinite(float(r["value"]))
     ]
+
+
+async def _resolved_markets_with_time(
+    pool: asyncpg.Pool,
+    *,
+    category: str | None,
+) -> list[tuple[UUID, float, datetime]]:
+    """Resolved markets that have both an outcome and a settlement timestamp."""
+    query = """
+        SELECT id, settled_value, settled_at
+        FROM   markets
+        WHERE  resolution_status = 'settled'
+          AND  settled_value IS NOT NULL
+          AND  settled_at IS NOT NULL
+    """
+    params: list[Any] = []
+    if category is not None:
+        query += " AND category = $1"
+        params.append(category)
+    query += " ORDER BY settled_at ASC"
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(query, *params)
+    return [(UUID(str(row["id"])), float(row["settled_value"]), row["settled_at"]) for row in rows]
+
+
+async def _market_pmid_series(
+    pool: asyncpg.Pool,
+    market_id: UUID,
+) -> list[tuple[datetime, float]]:
+    """Every finite p_mid for one market, oldest first."""
+    async with pool.acquire() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT event_ts, value
+            FROM   signals
+            WHERE  market_id = $1
+              AND  signal_type = 'p_mid'
+            ORDER BY event_ts ASC
+            """,
+            market_id,
+        )
+    series: list[tuple[datetime, float]] = []
+    for row in rows:
+        if row["value"] is None or row["event_ts"] is None:
+            continue
+        value = float(row["value"])
+        if math.isfinite(value):
+            series.append((row["event_ts"], value))
+    return series

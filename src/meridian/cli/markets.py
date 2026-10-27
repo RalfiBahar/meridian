@@ -12,7 +12,12 @@ import click
 
 from meridian.config import get_settings
 from meridian.db.postgres import pool_context
-from meridian.ingest.market_discovery import discover_ingest_markets, update_dotenv_keys, write_ingest_env
+from meridian.ingest.market_discovery import (
+    IngestDiscovery,
+    discover_ingest_markets,
+    update_dotenv_keys,
+    write_ingest_env,
+)
 from meridian.ingest.settled_backfill import SERIES_BY_CATEGORY, sync_settled_markets
 from meridian.kalshi.client import KalshiClient
 from meridian.kalshi.errors import KalshiAuthError
@@ -125,6 +130,21 @@ def sync_settled_cmd(
     )
 
 
+def _write_discovery_files(
+    write_env: str,
+    discovery: IngestDiscovery,
+    *,
+    update_dotenv: bool,
+) -> Path:
+    root = Path(__file__).resolve().parents[3]
+    env_path = root / write_env
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    write_ingest_env(str(env_path), discovery)
+    if update_dotenv:
+        update_dotenv_keys(str(root / ".env"), discovery)
+    return env_path
+
+
 async def _discover(write_env: str, update_dotenv: bool) -> int:
     settings = get_settings()
     configure_logging(settings)
@@ -144,12 +164,7 @@ async def _discover(write_env: str, update_dotenv: bool) -> int:
         if client is not None:
             await client.__aexit__(None, None, None)
 
-    root = Path(__file__).resolve().parents[3]
-    env_path = root / write_env
-    env_path.parent.mkdir(parents=True, exist_ok=True)
-    write_ingest_env(str(env_path), discovery)
-    if update_dotenv:
-        update_dotenv_keys(str(root / ".env"), discovery)
+    env_path = _write_discovery_files(write_env, discovery, update_dotenv=update_dotenv)
 
     click.echo(discovery.summary())
     click.echo(f"Wrote {env_path}")

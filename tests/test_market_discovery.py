@@ -1,5 +1,7 @@
 """Tests for ingest market discovery helpers."""
 
+from decimal import Decimal
+
 from meridian.ingest.market_discovery import _pick_event_strikes, _pick_top_volume
 from meridian.kalshi.models import KalshiMarket, KalshiMarketStatus
 
@@ -9,7 +11,7 @@ def _mkt(ticker: str, vol: str, event: str | None = None) -> KalshiMarket:
         ticker=ticker,
         event_ticker=event or ticker.rsplit("-", 1)[0],
         status=KalshiMarketStatus.ACTIVE,
-        volume=vol,  # type: ignore[arg-type]
+        volume_fp=Decimal(vol),
     )
 
 

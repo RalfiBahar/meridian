@@ -1,16 +1,22 @@
-"""Portfolio optimizer: Markowitz mean-variance with Ledoit-Wolf shrinkage.
+"""Portfolio optimizer: long-only minimum-variance QP.
 
-Uses `cvxpy` for the QP solver and `numpy` for covariance estimation.
-All inputs and outputs use plain numpy arrays (no pandas dependency).
+Uses CVXPY (Clarabel) for the quadratic program. This is not the partition
+arbitrage check. That check is ``analytics.arb._check_partition_arb`` and
+uses ``scipy.optimize.linprog``.
+
+The covariance helper is named ``ledoit_wolf_shrinkage`` but fits sklearn's
+Oracle Approximating Shrinkage (OAS) estimator, not the original
+Ledoit-Wolf formula. The docstring below matches the code.
 
 The optimizer solves:
 
-    minimize    w.T @ Σ @ w
-    subject to  w.T @ μ >= target_return  (optional)
+    minimize    w.T @ Sigma @ w
+    subject to  w.T @ mu >= target_return  (optional)
                 sum(w) == 1
-                w >= 0  (long-only)
+                w >= 0  (long-only, optional)
+                w <= max_weight             (when max_weight < 1)
 
-where `Σ` is the Ledoit-Wolf shrunk covariance matrix.
+There is no fee, no market-impact term, and no no-arbitrage constraint.
 
 Walk-forward cross-validation is in `walkforward.py`.
 """
@@ -30,10 +36,7 @@ from numpy.typing import NDArray
 
 
 def ledoit_wolf_shrinkage(returns: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Ledoit-Wolf analytical shrinkage estimator for covariance.
-
-    Returns the shrunk covariance matrix using the Ledoit-Wolf formula
-    (Oracle Approximating Shrinkage, OAS variant from sklearn).
+    """Sklearn OAS covariance. The function name is older than the estimator.
 
     `returns` shape: (T, N) — T observations, N assets.
     """
@@ -104,7 +107,7 @@ def optimize(
     returns : (T, N) array of period returns per asset.
     target_return : If given, adds a constraint `w @ mu >= target_return`.
     risk_free_rate : Used only for Sharpe ratio calculation (not a constraint).
-    shrink : Use Ledoit-Wolf OAS shrinkage (default True).
+    shrink : Use sklearn OAS shrinkage (default True).
     long_only : Enforce w >= 0 (default True).
     max_weight : Upper bound on individual weights (default 1.0 = unconstrained).
     """

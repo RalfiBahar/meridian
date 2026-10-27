@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from typing import Any
 
 import click
@@ -11,6 +12,10 @@ import click
 from meridian.config import get_settings
 from meridian.db.postgres import pool_context
 from meridian.logging import configure_logging
+
+
+def _write_output_file(path: str, text: str) -> None:
+    Path(path).write_text(text, encoding="utf-8")
 
 
 @click.group(name="experiment")
@@ -222,8 +227,8 @@ async def _run_export(*, id_or_name: str, fmt: str, output: str | None) -> None:
         lines: list[str] = [
             f"# Experiment: {record.get('name', 'unknown')}",
             "",
-            f"| Field | Value |",
-            f"|-------|-------|",
+            "| Field | Value |",
+            "|-------|-------|",
             f"| ID | {record.get('id', '—')} |",
             f"| Status | {record.get('status', '—')} |",
             f"| Git SHA | `{record.get('code_sha') or '—'}` |",
@@ -249,9 +254,7 @@ async def _run_export(*, id_or_name: str, fmt: str, output: str | None) -> None:
         text = "\n".join(lines)
 
     if output:
-        import pathlib
-
-        pathlib.Path(output).write_text(text, encoding="utf-8")
+        _write_output_file(output, text)
         click.echo(f"Written to {output}")
     else:
         click.echo(text)

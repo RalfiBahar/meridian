@@ -19,8 +19,9 @@ function** (PMF) against the **CME FedWatch** strip for each upcoming FOMC meeti
 1. Group all KXFED contracts for the target FOMC date into a `market_group`
    (via `meridian arb group-fed`).
 2. Sort contracts by strike (ascending target rate).
-3. Interpret cumulative contract prices as `P(rate ≤ k)` and take differences
-   to produce a PMF over discrete outcomes.
+3. Treat each KXFED price as `S(k) = P(rate > k)` and take adjacent differences,
+   including the tails `P(rate <= k_min)` and `P(rate > k_max)`. Do not divide
+   the survival quotes by their sum.
 4. Entropy `H = -Σ p_i log₂(p_i)` and expected rate `E[r] = Σ p_i * strike_i`
    are reported alongside the PMF.
 

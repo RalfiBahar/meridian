@@ -23,6 +23,7 @@ from meridian.analytics.fedwatch import (
     _var,
     build_kalshi_pmf,
     compute_event_response,
+    survival_to_density,
 )
 
 _EVENT_ID = UUID("00000000-0000-0000-0000-000000000001")
@@ -170,8 +171,13 @@ async def test_build_kalshi_pmf_single_contract() -> None:
     pool = _MockPool(_MockConn(rows))
     result = await build_kalshi_pmf(pool, _FOMC_DATE)  # type: ignore[arg-type]
     assert result is not None
-    assert result.strikes == [Decimal("4.25")]
-    assert result.probabilities == pytest.approx([1.0])
+    assert result.consistent
+    assert result.threshold_strikes == [Decimal("4.25")]
+    assert result.raw_p_mid == pytest.approx([1.0])
+    # S(4.25)=1 => no mass at or below the strike, all mass strictly above it.
+    assert [bucket.probability for bucket in result.buckets] == pytest.approx([0.0, 1.0])
+    assert result.buckets[1].lower_exclusive == Decimal("4.25")
+    assert result.buckets[1].representative_rate == Decimal("4.375")
     assert result.source == "kalshi"
 
 
@@ -185,11 +191,12 @@ async def test_build_kalshi_pmf_normalizes() -> None:
     pool = _MockPool(_MockConn(rows))
     result = await build_kalshi_pmf(pool, _FOMC_DATE)  # type: ignore[arg-type]
     assert result is not None
-    assert result.strikes == [Decimal("4.00"), Decimal("4.25"), Decimal("4.50")]
-    total = sum(result.probabilities)
-    assert total == pytest.approx(1.0)
-    # Largest mass on 4.00
-    assert result.probabilities[0] == pytest.approx(0.6)
+    assert result.consistent
+    assert result.threshold_strikes == [Decimal("4.00"), Decimal("4.25"), Decimal("4.50")]
+    assert result.raw_p_mid == pytest.approx([0.6, 0.3, 0.1])
+    # Differences of S(k)=P(rate > k), not sum-normalization of the quotes.
+    assert [bucket.probability for bucket in result.buckets] == pytest.approx([0.4, 0.3, 0.2, 0.1])
+    assert sum(result.probabilities) == pytest.approx(1.0)
 
 
 async def test_build_kalshi_pmf_skips_bad_tickers() -> None:
@@ -201,9 +208,67 @@ async def test_build_kalshi_pmf_skips_bad_tickers() -> None:
     pool = _MockPool(_MockConn(rows))
     result = await build_kalshi_pmf(pool, _FOMC_DATE)  # type: ignore[arg-type]
     assert result is not None
-    # Only one valid contract
-    assert len(result.strikes) == 1
-    assert result.strikes[0] == Decimal("4.25")
+    assert result.threshold_strikes == [Decimal("4.25")]
+    assert [bucket.probability for bucket in result.buckets] == pytest.approx([0.5, 0.5])
+
+
+def test_survival_differences_match_a_hand_computed_strip() -> None:
+    """Three strict above-strike quotes.
+
+    S(3.50)=0.965, S(3.75)=0.025, S(4.00)=0.005 means:
+    P(rate <= 3.50) = 0.035
+    P(3.50 < rate <= 3.75) = 0.940
+    P(3.75 < rate <= 4.00) = 0.020
+    P(rate > 4.00) = 0.005
+    """
+    density = survival_to_density(
+        [
+            (Decimal("3.50"), 0.965),
+            (Decimal("4.00"), 0.005),
+            (Decimal("3.75"), 0.025),
+        ]
+    )
+    assert density.consistent
+    assert [bucket.probability for bucket in density.buckets] == pytest.approx(
+        [0.035, 0.940, 0.020, 0.005]
+    )
+    assert sum(bucket.probability for bucket in density.buckets) == pytest.approx(1.0)
+    assert density.buckets[1].representative_rate == Decimal("3.625")
+    assert density.buckets[0].representative_rate == Decimal("3.375")
+    assert density.buckets[-1].representative_rate == Decimal("4.125")
+
+
+def test_survival_curve_rejects_a_non_monotonic_quote() -> None:
+    density = survival_to_density(
+        [
+            (Decimal("4.00"), 0.20),
+            (Decimal("4.25"), 0.50),
+        ]
+    )
+    assert not density.consistent
+    assert density.buckets == []
+    assert any("non-monotonic" in issue for issue in density.issues)
+
+
+def test_survival_curve_rejects_a_quote_outside_the_unit_interval() -> None:
+    density = survival_to_density([(Decimal("4.00"), 1.2)])
+    assert not density.consistent
+    assert density.buckets == []
+
+
+def test_missing_strike_keeps_mass_on_the_wider_interval() -> None:
+    density = survival_to_density(
+        [
+            (Decimal("4.00"), 0.80),
+            (Decimal("4.50"), 0.20),
+        ]
+    )
+    assert density.consistent
+    assert any("missing strike" in issue for issue in density.issues)
+    assert [bucket.probability for bucket in density.buckets] == pytest.approx([0.2, 0.6, 0.2])
+    assert density.buckets[1].lower_exclusive == Decimal("4.00")
+    assert density.buckets[1].upper_inclusive == Decimal("4.50")
+    assert density.buckets[1].representative_rate == Decimal("4.25")
 
 
 # ---------------------------------------------------------------------------

@@ -19,6 +19,8 @@ from uuid import UUID
 import asyncpg
 import numpy as np
 
+from meridian.analytics.yes_book import BookConventionError, simulate_yes_fill
+
 _DEFAULT_WINDOW = timedelta(days=7)
 
 
@@ -33,7 +35,7 @@ class MicrostructureMetrics:
 
     market_id: UUID
     window: timedelta
-    effective_spread: Decimal | None  # ask - bid (cents, annualised as Decimal)
+    effective_spread: Decimal | None  # mean(ask - bid) on quote ticks in the window
     obi: Decimal | None  # (bid_size - ask_size) / (bid_size + ask_size)
     kyle_lambda: float | None  # slope of ΔP ~ signed_volume
     amihud: float | None  # mean(|return| / volume)
@@ -120,19 +122,27 @@ async def simulate_execution(
 ) -> ExecutionEstimate:
     """Walk the latest book snapshot to estimate fill price and slippage.
 
-    `side` must be 'buy' or 'sell'.  For a buy order, we consume ask levels
-    (ascending price); for a sell order, we consume bid levels (descending).
+    `side` must be 'buy' or 'sell'. A buy walks YES asks from the best ask
+    upward. A sell walks YES bids from the best bid downward. Kalshi ``no``
+    levels are NO bids and are converted with ``yes_ask = 1 - no_bid`` before
+    the walk. Polymarket ``bid`` and ``ask`` prices are already outcome prices
+    and are not complemented.
     """
     if side not in ("buy", "sell"):
         raise ValueError(f"side must be 'buy' or 'sell', got {side!r}")
 
-    levels = await _latest_book_levels(pool, market_id, side=side)
-    if not levels:
+    rows = await _latest_book_levels(pool, market_id, side=side)
+    levels = [
+        (str(row["side"]), Decimal(str(row["price"])), Decimal(str(row["size"]))) for row in rows
+    ]
+    try:
+        fill = simulate_yes_fill(levels, side=side, target_quantity=target_quantity)
+    except BookConventionError:
         return ExecutionEstimate(
             market_id=market_id,
             side=side,
             target_quantity=target_quantity,
-            filled_quantity=Decimal("0"),
+            filled_quantity=Decimal(0),
             avg_fill_price=None,
             best_quote=None,
             slippage=None,
@@ -140,39 +150,16 @@ async def simulate_execution(
             partially_filled=True,
         )
 
-    best_quote = Decimal(str(levels[0]["price"]))
-    remaining = target_quantity
-    total_cost = Decimal("0")
-    n_levels = 0
-    filled = Decimal("0")
-
-    for level in levels:
-        if remaining <= 0:
-            break
-        size = Decimal(str(level["size"]))
-        price = Decimal(str(level["price"]))
-        fill = min(remaining, size)
-        total_cost += fill * price
-        filled += fill
-        remaining -= fill
-        n_levels += 1
-
-    partially_filled = remaining > 0
-    avg_fill = total_cost / filled if filled > 0 else None
-    slippage = (avg_fill - best_quote) if avg_fill is not None else None
-    if side == "sell" and slippage is not None:
-        slippage = -slippage  # positive slippage = we got less than best bid
-
     return ExecutionEstimate(
         market_id=market_id,
         side=side,
         target_quantity=target_quantity,
-        filled_quantity=filled,
-        avg_fill_price=avg_fill,
-        best_quote=best_quote,
-        slippage=slippage,
-        n_levels_consumed=n_levels,
-        partially_filled=partially_filled,
+        filled_quantity=fill.filled_quantity,
+        avg_fill_price=fill.avg_fill_price,
+        best_quote=fill.best_quote,
+        slippage=fill.slippage,
+        n_levels_consumed=fill.n_levels_consumed,
+        partially_filled=fill.partially_filled,
     )
 
 

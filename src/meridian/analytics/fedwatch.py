@@ -2,10 +2,13 @@
 
 Data flow
 ---------
-1. `build_kalshi_pmf(pool, fomc_date)` reads the latest `p_mid` signals for every
-   contract in the KXFED partition group whose `closes_at` falls on `fomc_date`.
-   Strikes are parsed from the ticker (e.g. KXFED-26JUN-T3.75 → 3.75%).
-   Probabilities are normalized so they sum to 1.
+1. `build_kalshi_pmf(pool, fomc_date)` reads the latest `p_mid` for every KXFED
+   contract whose `closes_at` falls on `fomc_date`. Each ticker `KXFED-*-T<k>`
+   is treated as a strict above-strike contract: YES pays 1 iff the rate is
+   above `k`, so `p_mid` is a survival probability `S(k) = P(rate > k)`.
+   Interval probabilities are adjacent differences, including the two tails.
+   Quotes are not renormalized to sum to 1. A non-monotonic or out-of-range
+   curve is returned with `consistent=False` and no probability masses.
 
 2. `fetch_cme_fedwatch(fomc_date)` attempts a best-effort HTTP GET to the CME
    Group public quotes endpoint.  Returns `None` on any network or parse failure —
@@ -20,6 +23,7 @@ Data flow
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -40,38 +44,108 @@ _CME_TIMEOUT = 8.0  # seconds
 # ---------------------------------------------------------------------------
 
 
+# Assumed spacing of the Fed funds target, used only to place probability
+# mass that the quoted strikes do not bound (the open tails). It is not a
+# term of the KXFED payoff.
+FED_FUNDS_STEP = Decimal("0.25")
+
+# The arb grouper and docs/concepts.md describe KXFED the same way. This
+# module does not fetch Kalshi's rule text, so a renamed contract would
+# still be differenced under this assumption.
+KXFED_CONTRACT = (
+    "KXFED YES pays 1 iff the Fed funds rate is strictly above the ticker "
+    "strike. p_mid is S(k) = P(rate > k). Tails use a 25bp representative "
+    "rate because the conditional expectation inside an open tail is not "
+    "identified by the strip."
+)
+
+
+@dataclass(frozen=True)
+class RateBucket:
+    """One interval of a survival-curve PMF.
+
+    For strict above-strike contracts, interior buckets are ``(k_i, k_{i+1}]``
+    and the tails are ``rate <= k_min`` and ``rate > k_max``.
+    """
+
+    lower_exclusive: Decimal | None
+    upper_inclusive: Decimal | None
+    probability: float
+    representative_rate: Decimal
+
+    def label(self) -> str:
+        if self.lower_exclusive is None and self.upper_inclusive is not None:
+            return f"rate <= {self.upper_inclusive}"
+        if self.upper_inclusive is None and self.lower_exclusive is not None:
+            return f"rate > {self.lower_exclusive}"
+        return f"{self.lower_exclusive} < rate <= {self.upper_inclusive}"
+
+
 @dataclass
 class FedPMF:
-    """Implied probability mass function over Fed-funds rate outcomes.
+    """Implied distribution over a Fed-funds meeting.
 
-    `strikes` and `probabilities` are parallel lists sorted ascending by strike.
-    `raw_p_mid` preserves the unnormalized Kalshi prices before normalization.
+    Kalshi KXFED results store the threshold strikes in ``threshold_strikes``
+    and the survival quotes in ``raw_p_mid``. ``strikes`` and ``probabilities``
+    are the displayed PMF: representative rate and interval probability.
+    Point-mass inputs (the CME helper, and unit-test constructors) leave
+    ``buckets`` empty and use ``strikes`` / ``probabilities`` directly.
     """
 
     fomc_date: date
-    strikes: list[Decimal]  # rate outcomes in %, ascending
-    probabilities: list[float]  # normalized P(rate = strike)
-    raw_p_mid: list[float]  # Kalshi p_mid before normalization
+    strikes: list[Decimal]
+    probabilities: list[float]
+    raw_p_mid: list[float]
     source: str  # "kalshi" or "cme_fedwatch"
+    buckets: list[RateBucket] = field(default_factory=list)
+    threshold_strikes: list[Decimal] = field(default_factory=list)
+    consistent: bool = True
+    issues: list[str] = field(default_factory=list)
+    contract_definition: str = ""
 
     def expected_rate(self) -> float:
-        """Probability-weighted expected rate."""
+        """Probability-weighted representative rate.
+
+        For a KXFED strip this is not the conditional expectation inside an
+        open tail. Tail mass is placed half a Fed step beyond the outer strike.
+        """
+        if self.buckets:
+            return sum(float(b.representative_rate) * b.probability for b in self.buckets)
         return sum(float(s) * p for s, p in zip(self.strikes, self.probabilities, strict=True))
 
     def entropy(self) -> float:
-        """Shannon entropy in bits — measure of uncertainty."""
-        return -sum(p * math.log2(p) for p in self.probabilities if p > 0)
+        """Shannon entropy in bits of the displayed probabilities."""
+        probs = [b.probability for b in self.buckets] if self.buckets else self.probabilities
+        return -sum(p * math.log2(p) for p in probs if p > 0)
 
     def summary(self) -> str:
         lines = [
             f"FOMC date:    {self.fomc_date}",
             f"Source:       {self.source}",
+            f"Consistent:   {self.consistent}",
             f"Expected rate: {self.expected_rate():.3f}%",
             f"Entropy:      {self.entropy():.3f} bits",
-            "",
-            f"{'Strike':>8}  {'P(rate)':>10}  {'Raw p_mid':>10}",
-            "─" * 34,
         ]
+        if self.contract_definition:
+            lines.append(f"Contract:     {self.contract_definition}")
+        if self.issues:
+            lines.append("Issues:")
+            lines.extend(f"  - {issue}" for issue in self.issues)
+        if self.buckets:
+            lines.extend(["", f"{'Interval':<32}  {'P':>8}  {'Rep.':>8}"])
+            for bucket in self.buckets:
+                lines.append(
+                    f"{bucket.label():<32}  {bucket.probability:>8.4f}  "
+                    f"{float(bucket.representative_rate):>7.3f}%"
+                )
+            return "\n".join(lines)
+        lines.extend(
+            [
+                "",
+                f"{'Strike':>8}  {'P(rate)':>10}  {'Raw p_mid':>10}",
+                "-" * 34,
+            ]
+        )
         for s, p, raw in zip(self.strikes, self.probabilities, self.raw_p_mid, strict=True):
             lines.append(f"{float(s):>8.2f}%  {p:>10.4f}  {raw:>10.4f}")
         return "\n".join(lines)
@@ -126,10 +200,11 @@ async def build_kalshi_pmf(
     pool: Any,
     fomc_date: date,
 ) -> FedPMF | None:
-    """Build an implied PMF from Kalshi KXFED contracts that settle on `fomc_date`.
+    """Build an interval PMF from KXFED survival quotes closing on `fomc_date`.
 
-    Reads the latest `p_mid` signal per contract. Returns `None` when no
-    contracts are found for the requested date.
+    Reads the latest `p_mid` per contract. Returns None when no parsable
+    contracts are found. A parsed but non-monotonic curve is returned with
+    ``consistent`` false and empty probabilities; it is not renormalized.
     """
     rows = await _kalshi_kxfed_signals(pool, fomc_date)
     if not rows:
@@ -145,18 +220,19 @@ async def build_kalshi_pmf(
     if not pairs:
         return None
 
-    pairs.sort(key=lambda x: x[0])
-    strikes = [s for s, _ in pairs]
-    raw = [p for _, p in pairs]
-    total = sum(raw)
-    probs = [p / total for p in raw] if total > 0 else [1.0 / len(raw)] * len(raw)
-
+    density = survival_to_density(pairs)
+    displayed = density.buckets if density.consistent else []
     return FedPMF(
         fomc_date=fomc_date,
-        strikes=strikes,
-        probabilities=probs,
-        raw_p_mid=raw,
+        strikes=[bucket.representative_rate for bucket in displayed],
+        probabilities=[bucket.probability for bucket in displayed],
+        raw_p_mid=density.survivals,
         source="kalshi",
+        buckets=displayed,
+        threshold_strikes=density.thresholds,
+        consistent=density.consistent,
+        issues=list(density.issues),
+        contract_definition=KXFED_CONTRACT,
     )
 
 
@@ -263,6 +339,132 @@ async def compute_event_response(
 # ---------------------------------------------------------------------------
 # Pure helpers
 # ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class SurvivalDensity:
+    """Interval masses derived from an ordered above-strike strip."""
+
+    thresholds: list[Decimal]
+    survivals: list[float]
+    buckets: list[RateBucket]
+    consistent: bool
+    issues: tuple[str, ...]
+
+
+def survival_to_density(
+    quotes: Sequence[tuple[Decimal, float]],
+) -> SurvivalDensity:
+    """Turn strict above-strike quotes into interval probabilities.
+
+    Contract assumed for every quote: the price is ``S(k) = P(rate > k)``,
+    not ``P(rate = k)`` and not ``P(rate >= k)``.
+
+    For ordered strikes ``k0 < k1 < ... < kn``:
+
+    - ``P(rate <= k0) = 1 - S(k0)``
+    - ``P(k_i < rate <= k_{i+1}) = S(k_i) - S(k_{i+1})``
+    - ``P(rate > kn) = S(kn)``
+
+    These three lines sum to 1 whenever every survival is a number. They are
+    a probability distribution only when the curve is inside ``[0, 1]`` and
+    non-increasing. Otherwise the result is marked inconsistent and no
+    buckets are returned. Negative differences are not clipped and the quotes
+    are not divided by their sum.
+
+    A gap larger than 25bp is reported as a missing strike. The mass between
+    the two quoted strikes is left on that wider interval. No strike is
+    invented to fill the hole. Duplicate strikes with the same quote collapse.
+    Duplicate strikes that disagree are inconsistent.
+    """
+    grouped: dict[Decimal, list[float]] = {}
+    for strike, probability in quotes:
+        grouped.setdefault(strike, []).append(probability)
+
+    issues: list[str] = []
+    thresholds = sorted(grouped)
+    survivals: list[float] = []
+    for strike in thresholds:
+        values = grouped[strike]
+        if max(values) - min(values) > 1e-9:
+            issues.append(f"conflicting quotes at strike {strike}: {values}")
+            survivals.append(values[0])
+        else:
+            survivals.append(values[0])
+
+    monotonic = True
+    in_unit_interval = True
+    for index, strike in enumerate(thresholds):
+        survival = survivals[index]
+        if survival < -1e-12 or survival > 1.0 + 1e-12:
+            in_unit_interval = False
+            issues.append(f"survival {survival} at strike {strike} is outside [0, 1]")
+        if index == 0:
+            continue
+        previous = thresholds[index - 1]
+        if survival > survivals[index - 1] + 1e-12:
+            monotonic = False
+            issues.append(
+                f"non-monotonic survival: S({previous})={survivals[index - 1]} "
+                f"< S({strike})={survival}"
+            )
+        gap = strike - previous
+        if gap > FED_FUNDS_STEP + Decimal("0.001"):
+            issues.append(
+                f"missing strike between {previous} and {strike}; mass stays on the wider interval"
+            )
+
+    consistent = (
+        monotonic
+        and in_unit_interval
+        and not any(issue.startswith("conflicting quotes") for issue in issues)
+    )
+    buckets = _interval_buckets(thresholds, survivals) if consistent and thresholds else []
+    return SurvivalDensity(
+        thresholds=thresholds,
+        survivals=survivals,
+        buckets=buckets,
+        consistent=consistent,
+        issues=tuple(issues),
+    )
+
+
+def _interval_buckets(
+    thresholds: list[Decimal],
+    survivals: list[float],
+) -> list[RateBucket]:
+    half = FED_FUNDS_STEP / 2
+    buckets: list[RateBucket] = []
+    first = thresholds[0]
+    buckets.append(
+        RateBucket(
+            lower_exclusive=None,
+            upper_inclusive=first,
+            probability=1.0 - survivals[0],
+            representative_rate=first - half,
+        )
+    )
+    for index in range(len(thresholds) - 1):
+        left = thresholds[index]
+        right = thresholds[index + 1]
+        buckets.append(
+            RateBucket(
+                lower_exclusive=left,
+                upper_inclusive=right,
+                probability=survivals[index] - survivals[index + 1],
+                representative_rate=(left + right) / 2,
+            )
+        )
+    last = thresholds[-1]
+    buckets.append(
+        RateBucket(
+            lower_exclusive=last,
+            upper_inclusive=None,
+            probability=survivals[-1],
+            representative_rate=last + half,
+        )
+    )
+    return buckets
 
 
 def _parse_kxfed_strike(external_id: str) -> Decimal | None:

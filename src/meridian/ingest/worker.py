@@ -15,7 +15,7 @@ import redis.asyncio as aioredis
 
 from meridian.config import Settings
 from meridian.events import CanonicalEvent
-from meridian.ingest.gap import GapDetector
+from meridian.ingest.gap import GapDetector, SequenceObservation
 from meridian.ingest.reconnect import run_with_reconnect
 from meridian.ingest.registry import MarketRegistry
 from meridian.ingest.stats import IngestStats
@@ -83,14 +83,28 @@ class KalshiIngestWorker:
 
     async def _handle(self, raw: dict[str, Any]) -> None:
         self._stats.received += 1
-        gap = await self._gaps.observe(raw)
-        if gap > 0:
-            ingest_gaps_total.labels(venue="kalshi").inc()
+        observation = self._gaps.classify(raw)
         event = normalize_kalshi_message(raw)
         if event is None:
             self._classify_skipped(raw)
+            # Nothing was supposed to be stored. Advance the venue cursor so
+            # an ignored frame does not look like a missing book update.
+            await self._commit_sequence(observation, raw)
             return
-        await self._persist(event)
+        if not await self._persist(event):
+            # The cursor stays on the last durable sequence. The next seq is
+            # then a forward gap instead of a silent skip of this message.
+            return
+        await self._commit_sequence(observation, raw)
+
+    async def _commit_sequence(self, observation: SequenceObservation, raw: dict[str, Any]) -> None:
+        try:
+            gap = await self._gaps.commit(observation, raw)
+        except Exception as exc:
+            self._log.error("ingest.gap_commit_failed", error=str(exc))
+            return
+        if gap > 0:
+            ingest_gaps_total.labels(venue="kalshi").inc()
 
     def _classify_skipped(self, raw: dict[str, Any]) -> None:
         raw_type = raw.get("type")
@@ -100,7 +114,12 @@ class KalshiIngestWorker:
         else:
             self._stats.unknown_types[msg_type] = self._stats.unknown_types.get(msg_type, 0) + 1
 
-    async def _persist(self, event: CanonicalEvent) -> None:
+    async def _persist(self, event: CanonicalEvent) -> bool:
+        """Write one event. Returns False when the write fails.
+
+        Market registration still runs before the write. A failed write does
+        not advance the gap cursor; see ``_handle``.
+        """
         self._stats.normalized += 1
         is_new = await self._registry.ensure_market(event.market_id, event.external_market_id)
         if is_new:
@@ -118,13 +137,14 @@ class KalshiIngestWorker:
                 kind=event.payload.kind.value,
                 error=str(exc),
             )
-            return
+            return False
         self._stats.rows_written += rows
         ingest_events_total.labels(venue="kalshi", kind=event.payload.kind.value).inc()
         lag = (event.ingest_ts - event.event_ts).total_seconds()
         ingest_lag_seconds.labels(venue="kalshi").observe(lag)
         if self._redis is not None:
             await self._publish(event)
+        return True
 
     async def _publish(self, event: CanonicalEvent) -> None:
         assert self._redis is not None

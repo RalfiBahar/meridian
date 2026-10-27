@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from meridian.ingest.gap import GapDetector
 
 
@@ -148,3 +150,47 @@ async def test_gap_signal_metadata_contains_sid_and_seqs(mock_pool: Any, mock_co
     assert metadata["sid"] == 7
     assert metadata["last_seq"] == 100
     assert metadata["new_seq"] == 105
+
+
+async def test_backward_sequence_does_not_rewind_the_cursor(mock_pool: Any) -> None:
+    gd = GapDetector(mock_pool)
+    await gd.observe(_msg(1, 10))
+    assert await gd.observe(_msg(1, 8)) == 0
+    assert gd._last_seq[1] == 10
+    assert await gd.observe(_msg(1, 11)) == 0
+    assert gd._last_seq[1] == 11
+    assert gd.gaps_detected == 0
+
+
+async def test_duplicate_then_next_sequence_is_not_a_gap(mock_pool: Any) -> None:
+    gd = GapDetector(mock_pool)
+    await gd.observe(_msg(1, 10))
+    assert await gd.observe(_msg(1, 10)) == 0
+    assert await gd.observe(_msg(1, 11)) == 0
+    assert gd.gaps_detected == 0
+    assert gd._last_seq[1] == 11
+
+
+async def test_stale_sequence_does_not_inflate_the_following_gap(mock_pool: Any) -> None:
+    gd = GapDetector(mock_pool)
+    await gd.observe(_msg(1, 10))
+    await gd.observe(_msg(1, 8))
+    # Missing 11 and 12. The cursor must still be 10, not 8.
+    assert await gd.observe(_msg(1, 13)) == 2
+    assert gd._last_seq[1] == 13
+
+
+async def test_failed_gap_insert_does_not_advance_the_cursor(
+    mock_pool: Any, mock_conn: Any
+) -> None:
+    gd = GapDetector(mock_pool)
+    await gd.observe(_msg(1, 10))
+
+    async def _boom(query: str, *args: object) -> str:
+        raise RuntimeError("insert failed")
+
+    mock_conn.execute = _boom
+    with pytest.raises(RuntimeError, match="insert failed"):
+        await gd.observe(_msg(1, 13))
+    assert gd._last_seq[1] == 10
+    assert gd.gaps_detected == 0

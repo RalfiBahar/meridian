@@ -18,7 +18,12 @@ from fastapi import APIRouter, Depends, Query, WebSocket, WebSocketDisconnect
 
 from meridian.api.auth import get_valid_keys, require_api_key
 from meridian.api.deps import get_pool
-from meridian.api.models import ArbStats, ArbViolationsResponse, CrossVenueDivergence, PartitionViolation
+from meridian.api.models import (
+    ArbStats,
+    ArbViolationsResponse,
+    CrossVenueDivergence,
+    PartitionViolation,
+)
 
 router = APIRouter()
 

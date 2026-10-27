@@ -202,13 +202,15 @@ async def write_nlp_signals(
             None,  # market_id: NLP signals are per-event, not per-market
             "market_moving_prob",
             r.market_moving_prob,
-            json.dumps({
-                "event_id": str(r.event_id),
-                "label": r.label,
-                "category": r.category,
-                "is_market_moving": r.is_market_moving,
-                "top_tokens": r.top_tokens,
-            }),
+            json.dumps(
+                {
+                    "event_id": str(r.event_id),
+                    "label": r.label,
+                    "category": r.category,
+                    "is_market_moving": r.is_market_moving,
+                    "top_tokens": r.top_tokens,
+                }
+            ),
         )
         for r in results
     ]

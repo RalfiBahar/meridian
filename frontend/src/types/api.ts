@@ -109,6 +109,12 @@ export interface CalibrationResponse {
   ece: number | null;
   brier_after_isotonic: number | null;
   reliability_bins: ReliabilityBin[];
+  evaluation_method?: string;
+  observation_unit?: string;
+  isotonic_method?: string;
+  brier_isotonic_in_sample?: number | null;
+  n_train_markets?: number | null;
+  n_test_markets?: number | null;
 }
 
 export interface FedPMF {
@@ -119,6 +125,9 @@ export interface FedPMF {
   entropy: number;
   source: string;
   raw_p_mid?: number[];
+  consistent?: boolean;
+  issues?: string[];
+  contract_definition?: string;
 }
 
 export interface FedWatchResponse {

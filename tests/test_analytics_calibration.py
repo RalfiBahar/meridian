@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -131,7 +131,6 @@ def test_reliability_mean_predicted_in_range() -> None:
 def test_ece_perfect_calibration() -> None:
     """A predictor where mean_predicted == mean_realized in every bin has ECE = 0."""
     # Uniform predictions exactly equal outcomes — ECE approaches 0.
-    rng = np.random.default_rng(42)
     # 10 bins, each bucket: predicted = realized by construction.
     p_list, o_list = [], []
     for i in range(10):
@@ -481,3 +480,98 @@ async def test_write_calibration_signals_bin_gap_value() -> None:
     # reliability bin record: (event_ts, None, "calibration_reliability", gap, bin_meta, now)
     bin_gap = records[2][3]
     assert bin_gap == pytest.approx(0.5 - 0.3)
+
+
+def test_point_in_time_forecast_ignores_quotes_after_settlement() -> None:
+    from meridian.analytics.calibration import point_in_time_forecast
+
+    settlement = datetime(2026, 6, 1, tzinfo=UTC)
+    chosen = point_in_time_forecast(
+        [
+            (datetime(2026, 5, 1, tzinfo=UTC), 0.25),
+            (datetime(2026, 5, 20, tzinfo=UTC), 0.40),
+            (datetime(2026, 6, 2, tzinfo=UTC), 0.90),
+        ],
+        settlement,
+    )
+    assert chosen == (datetime(2026, 5, 20, tzinfo=UTC), 0.40)
+
+
+def test_temporal_holdout_fits_isotonic_only_on_earlier_settlements() -> None:
+    """Constructed rows. This does not measure a live market.
+
+    Both training outcomes are 0, so the fitted map sends the test probability
+    to 0. The held-out outcome is 1. If the test label had been used in the
+    fit, the map at 0.2 would not stay at 0 and the isotonic Brier would not
+    be 1.
+    """
+    from meridian.analytics.calibration import MarketForecast, evaluate_temporal_holdout
+
+    start = datetime(2026, 6, 1, tzinfo=UTC)
+
+    def forecast(n: int, when: datetime, probability: float, outcome: float) -> MarketForecast:
+        return MarketForecast(
+            market_id=UUID(int=n),
+            settlement_ts=when,
+            forecast_ts=when - timedelta(hours=1),
+            probability=probability,
+            outcome=outcome,
+        )
+
+    held_out = evaluate_temporal_holdout(
+        [
+            forecast(1, start - timedelta(days=2), 0.2, 0.0),
+            forecast(2, start - timedelta(days=1), 0.8, 0.0),
+            forecast(3, start, 0.2, 1.0),
+        ],
+        evaluation_start=start,
+    )
+    assert held_out is not None
+    assert held_out.n_train == 2
+    assert held_out.n_test == 1
+    assert held_out.oos_brier == pytest.approx(0.64)
+    assert held_out.oos_isotonic_brier == pytest.approx(1.0)
+    assert held_out.in_sample_isotonic_brier == pytest.approx(0.0)
+
+
+def test_market_settling_at_the_cutoff_is_held_out() -> None:
+    from meridian.analytics.calibration import MarketForecast, evaluate_temporal_holdout
+
+    start = datetime(2026, 6, 1, tzinfo=UTC)
+    forecasts = [
+        MarketForecast(
+            market_id=UUID(int=1),
+            settlement_ts=start - timedelta(days=1),
+            forecast_ts=start - timedelta(days=1, hours=1),
+            probability=0.2,
+            outcome=0.0,
+        ),
+        MarketForecast(
+            market_id=UUID(int=2),
+            settlement_ts=start,
+            forecast_ts=start - timedelta(hours=1),
+            probability=0.2,
+            outcome=1.0,
+        ),
+    ]
+    held_out = evaluate_temporal_holdout(forecasts, evaluation_start=start)
+    assert held_out is not None
+    assert held_out.n_train == 1
+    assert held_out.n_test == 1
+    assert held_out.oos_isotonic_brier is None
+
+
+def test_duplicate_market_forecasts_are_rejected() -> None:
+    from meridian.analytics.calibration import MarketForecast, evaluate_temporal_holdout
+
+    start = datetime(2026, 6, 1, tzinfo=UTC)
+    market_id = UUID(int=1)
+    one = MarketForecast(
+        market_id=market_id,
+        settlement_ts=start,
+        forecast_ts=start - timedelta(hours=1),
+        probability=0.4,
+        outcome=1.0,
+    )
+    with pytest.raises(ValueError, match="one forecast per market"):
+        evaluate_temporal_holdout([one, one], evaluation_start=start)

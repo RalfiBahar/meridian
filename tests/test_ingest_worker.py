@@ -303,3 +303,42 @@ async def test_enrich_market_updates_db(
     await worker._enrich_market("ENRICH-TEST", UUID("00000000-0000-0000-0000-000000000001"))
 
     assert any("UPDATE" in sql for sql in executed_sqls), "expected an UPDATE statement"
+
+
+def _book_delta(seq: int) -> dict[str, Any]:
+    return {
+        "type": "orderbook_delta",
+        "sid": 1,
+        "seq": seq,
+        "msg": {
+            "market_ticker": "KXFED-26JUN-T3.75",
+            "price_dollars": "0.4200",
+            "delta_fp": "1.00",
+            "side": "yes",
+            "ts_ms": 1_700_000_000_000,
+        },
+    }
+
+
+async def test_failed_write_does_not_advance_gap_cursor(kalshi_settings: Any) -> None:
+    """A failed tick write leaves the cursor on the last durable sequence."""
+    from meridian.kalshi.normalize import kalshi_market_id
+
+    ticker = "KXFED-26JUN-T3.75"
+    worker = KalshiIngestWorker(kalshi_settings, _MockPool(), tickers=[ticker])
+    worker._registry._known.add(kalshi_market_id(ticker))
+
+    async def _write(event: Any) -> int:
+        if event.sequence_no == 6:
+            raise RuntimeError("db down")
+        return 1
+
+    worker._writer.write = _write  # type: ignore[method-assign]
+
+    await worker._handle(_book_delta(5))
+    assert worker._gaps._last_seq[1] == 5
+    await worker._handle(_book_delta(6))
+    assert worker._gaps._last_seq[1] == 5
+    await worker._handle(_book_delta(7))
+    assert worker._gaps.gaps_detected == 1
+    assert worker._gaps._last_seq[1] == 7

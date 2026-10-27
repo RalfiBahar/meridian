@@ -127,6 +127,12 @@ export default async function CalibrationPage({
 
       {data && (
         <>
+          <div style={{ color: "var(--muted)", fontSize: 11, marginBottom: 12, maxWidth: 720 }}>
+            {data.evaluation_method ?? "in_sample_all_ticks"}
+            {" · "}
+            {data.observation_unit ?? "p_mid_tick"}
+            {data.isotonic_method ? ` · isotonic: ${data.isotonic_method}` : ""}
+          </div>
           <div
             style={{
               display: "grid",

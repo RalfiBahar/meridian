@@ -45,8 +45,11 @@ async def fedwatch(
             expected_rate=pmf.expected_rate(),
             entropy=pmf.entropy(),
             strikes=[float(s) for s in pmf.strikes],
-            probabilities=pmf.probabilities,
-            raw_p_mid=pmf.raw_p_mid,
+            probabilities=list(pmf.probabilities),
+            raw_p_mid=list(pmf.raw_p_mid),
+            consistent=bool(pmf.consistent),
+            issues=list(pmf.issues),
+            contract_definition=str(pmf.contract_definition),
         )
 
     return FedWatchResponse(

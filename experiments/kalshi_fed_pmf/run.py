@@ -36,9 +36,7 @@ async def main() -> None:
     from meridian.db.postgres import pool_context
 
     settings = get_settings()
-    fomc_date: date | None = (
-        date.fromisoformat(fomc_date_str) if fomc_date_str else None
-    )
+    fomc_date: date | None = date.fromisoformat(fomc_date_str) if fomc_date_str else None
 
     async with pool_context(settings) as pool:
         if fomc_date is None:

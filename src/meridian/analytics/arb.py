@@ -15,10 +15,16 @@ Two types of violations are detected and written to the `signals` table:
 Kalshi standard maker/taker fee: 2 cents per contract (0.02 USD), deducted
 from winnings.  The fee-adjusted spread is `spread + 2 * FEE_PER_SIDE`.
 
-`check_partition_arb` uses `scipy.optimize.linprog` to solve the feasibility
-LP for the general case (where spreads are asymmetric across contracts), not
-just the trivial sum check — though for mutually-exclusive binary partitions
-the LP reduces to exactly the sum check.
+The reported violation is a fee-adjusted sum of the best bids or asks.
+``scipy.optimize.linprog`` (HiGHS) is a separate feasibility check on the
+unadjusted bid/ask box. It does not use CVXPY. CVXPY is the mean-variance
+portfolio solver in ``research/portfolio.py``.
+
+A positive ``violation_bps`` is a fee-adjusted quoted inconsistency. It is
+``executable`` only when every contract also has positive size on the side
+the trade would hit. Size here is the top-of-book size on the quote row,
+not a walk of the book, and the fee is a flat 0.02 per contract rather than
+Kalshi's current fee schedule.
 """
 
 from __future__ import annotations
@@ -51,10 +57,19 @@ class PartitionArbResult:
     n_contracts: int
     min_ask_sum: Decimal  # sum(best asks)  — < 1 → long arb
     max_bid_sum: Decimal  # sum(best bids)  — > 1 → short arb
-    violation_bps: Decimal  # 0 if no arb, > 0 if arb exists
+    violation_bps: Decimal  # fee-adjusted; 0 if that check finds no arb
     direction: str  # "long" | "short" | "none"
     depth_feasible: bool
     market_ids: list[UUID]
+    # Raw sum check, before the flat 0.02 fee. Can be positive when
+    # violation_bps is 0 because fees consume the quoted gap.
+    theoretical_violation_bps: Decimal = Decimal("0")
+    # True only when the fee-adjusted check fired and every required
+    # top-of-book size is positive. Not a statement that the trade filled.
+    executable: bool = False
+    # None when the fee-adjusted sum already fired and the LP was not run.
+    # The LP uses unadjusted bounds and does not set violation_bps.
+    lp_feasible: bool | None = None
 
 
 @dataclass
@@ -216,33 +231,44 @@ def _check_partition_arb(
     eff_ask_sum = float(np.sum(eff_asks))
     eff_bid_sum = float(np.sum(eff_bids))
 
-    # Fast check for partition markets.
+    # Fee-adjusted sum. This is the number stored in violation_bps.
     long_violation = max(0.0, 1.0 - eff_ask_sum)
     short_violation = max(0.0, eff_bid_sum - 1.0)
     raw_violation = max(long_violation, short_violation)
+    gross_long = max(0.0, 1.0 - float(np.sum(asks)))
+    gross_short = max(0.0, float(np.sum(bids)) - 1.0)
+    theoretical_bps = Decimal(str(round(max(gross_long, gross_short) * 10000, 2)))
 
+    lp_feasible: bool | None = None
     if raw_violation == 0.0:
-        # Confirm with LP for edge cases.
-        c = np.zeros(n)
-        A_eq = np.ones((1, n))
-        b_eq = np.array([1.0])
+        # The LP asks whether some vector inside the raw [bid, ask] box sums
+        # to 1. It ignores fees. A fee-feasible book can still be infeasible
+        # here when a contract is crossed (bid > ask). That status is recorded
+        # and does not by itself create a fee-adjusted violation.
+        objective = np.zeros(n)
+        equality = np.ones((1, n))
         bounds = list(zip(bids.tolist(), asks.tolist(), strict=True))
-        res = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method="highs")
-        if res.status == 0:  # feasible
-            violation_bps = Decimal("0")
-            direction = "none"
+        try:
+            solved = linprog(
+                objective,
+                A_eq=equality,
+                b_eq=np.array([1.0]),
+                bounds=bounds,
+                method="highs",
+            )
+        except ValueError:
+            lp_feasible = False
         else:
-            # Infeasible despite raw check — recompute from effective sums.
-            long_v = max(0.0, 1.0 - eff_ask_sum)
-            short_v = max(0.0, eff_bid_sum - 1.0)
-            raw = max(long_v, short_v)
-            violation_bps = Decimal(str(round(raw * 10000, 2)))
-            direction = "long" if long_v >= short_v else "short"
+            lp_feasible = solved.status == 0
+        violation_bps = Decimal("0")
+        direction = "none"
     else:
         violation_bps = Decimal(str(round(raw_violation * 10000, 2)))
         direction = "long" if long_violation >= short_violation else "short"
 
-    # Depth feasibility: each contract must have non-zero size on the needed side.
+    # Depth flag: top-of-book size on the side the sum check would trade.
+    # A zero size means the quote is not an executable opportunity at this
+    # checker. It is not a full-book slippage walk.
     depth_feasible = False
     if violation_bps > 0:
         if direction == "long":
@@ -260,6 +286,9 @@ def _check_partition_arb(
         direction=direction,
         depth_feasible=depth_feasible,
         market_ids=[UUID(str(c["market_id"])) for c in contracts],
+        theoretical_violation_bps=theoretical_bps,
+        executable=violation_bps > 0 and depth_feasible,
+        lp_feasible=lp_feasible,
     )
 
 

@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -42,7 +41,8 @@ class SettledBackfillResult:
             f"Synthetic rows removed: {self.synthetic_removed}",
         ]
         if self.by_category:
-            lines.append("By category: " + ", ".join(f"{k}={v}" for k, v in sorted(self.by_category.items())))
+            category_bits = ", ".join(f"{k}={v}" for k, v in sorted(self.by_category.items()))
+            lines.append(f"By category: {category_bits}")
         if self.errors:
             lines.append(f"Errors ({len(self.errors)}): " + "; ".join(self.errors[:3]))
         return "\n".join(lines)
@@ -313,7 +313,9 @@ async def sync_settled_markets(
                             async with pool.acquire() as conn:
                                 await conn.execute(
                                     """
-                                    INSERT INTO signals (event_ts, market_id, signal_type, value, metadata, ingest_ts)
+                                    INSERT INTO signals (
+                                        event_ts, market_id, signal_type, value, metadata, ingest_ts
+                                    )
                                     VALUES ($1, $2, 'p_mid', $3, $4::jsonb, $1)
                                     """,
                                     settle_ts,

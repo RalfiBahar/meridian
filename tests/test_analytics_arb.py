@@ -151,8 +151,44 @@ def test_result_fields() -> None:
     assert r.max_bid_sum > Decimal("0")
 
 
+def test_gross_quote_gap_inside_the_fee_is_not_executable() -> None:
+    """Asks sum to 0.99. Two contracts at 0.02 fee cost 0.04, so the buy loses money."""
+    contracts = _contracts([0.40, 0.40], [0.49, 0.50])
+    result = _check_partition_arb(_GROUP_ID, "fees", contracts)
+    assert result.theoretical_violation_bps == Decimal("100.0")
+    assert result.violation_bps == Decimal("0")
+    assert result.executable is False
+    assert result.direction == "none"
+
+
+def test_fee_adjusted_violation_with_size_is_marked_executable() -> None:
+    contracts = _contracts([0.55, 0.55], [0.60, 0.60])
+    result = _check_partition_arb(_GROUP_ID, "size", contracts)
+    assert result.violation_bps > 0
+    assert result.direction == "short"
+    assert result.depth_feasible is True
+    assert result.executable is True
+
+
+def test_fee_adjusted_violation_without_size_is_not_executable() -> None:
+    contracts = _contracts([0.55, 0.55], [0.60, 0.60])
+    contracts[0]["bid_size"] = Decimal("0")
+    result = _check_partition_arb(_GROUP_ID, "empty", contracts)
+    assert result.violation_bps > 0
+    assert result.direction == "short"
+    assert result.depth_feasible is False
+    assert result.executable is False
+
+
+def test_partition_check_calls_scipy_linprog() -> None:
+    solver = _check_partition_arb.__globals__["linprog"]
+    module = getattr(solver, "__module__", "")
+    assert module.startswith("scipy.optimize")
+    assert "cvxpy" not in _check_partition_arb.__globals__
+
+
 # ---------------------------------------------------------------------------
-# LP infeasible edge case (inverted spread) — exercises lines 181-185
+# LP infeasible edge case (inverted spread)
 # ---------------------------------------------------------------------------
 
 
@@ -177,9 +213,13 @@ def test_lp_infeasible_inverted_spread() -> None:
         },
     ]
     r = _check_partition_arb(_GROUP_ID, "inverted", contracts)
-    # LP is infeasible but raw recalculation gives 0 (both sums within range).
+    # The raw box is infeasible because one market is crossed, but the
+    # fee-adjusted sums are still inside [bid, ask] totals. That is not
+    # an executable fee-adjusted arbitrage.
     assert r.violation_bps == Decimal("0")
-    assert r.direction in ("long", "short", "none")
+    assert r.direction == "none"
+    assert r.executable is False
+    assert r.lp_feasible is False
 
 
 # ---------------------------------------------------------------------------
